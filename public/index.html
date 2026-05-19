@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚽ Quinela Mundial 2026</title>
+  <meta name="description" content="Quinela del Mundial FIFA 2026 - Predice los resultados y compite con tus amigos">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">⚽</span>
+        <div>
+          <h1 style="display: flex; align-items: center; gap: 8px;">
+            Quinela Mundial
+            <span class="tab admin-discrete-icon" data-tab="admin" id="tabAdmin" title="Panel de Administración">🛡️</span>
+          </h1>
+          <span class="logo-year">FIFA 2026 🇲🇽🇺🇸🇨🇦</span>
+        </div>
+      </div>
+      <div class="header-stats" id="headerStats">
+        <div class="stat-pill">
+          <span class="stat-label">Participantes</span>
+          <span class="stat-value" id="statParticipants">0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Partidos jugados</span>
+          <span class="stat-value" id="statPlayed">0/72</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="tabs-nav">
+    <button class="tab active" data-tab="leaderboard" id="tabLeaderboard">
+      <span class="tab-icon">🏆</span>
+      <span>Tabla General</span>
+    </button>
+    <button class="tab" data-tab="groups" id="tabGroups">
+      <span class="tab-icon">⚽</span>
+      <span>Grupos</span>
+    </button>
+    <button class="tab" data-tab="tendencias" id="tabTendencias">
+      <span class="tab-icon">📊</span>
+      <span>Tendencias</span>
+    </button>
+    <button class="tab" data-tab="knockout" id="tabKnockout">
+      <span class="tab-icon">🏟️</span>
+      <span>Fase Final</span>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- ═══ Tab: Leaderboard ═══ -->
+    <section class="tab-content active" id="sectionLeaderboard">
+      <div class="section-header">
+        <h2>🏆 Tabla de Posiciones</h2>
+        <p class="section-subtitle">La tabla se actualiza en tiempo real conforme se registran resultados</p>
+      </div>
+      
+
+
+      <!-- Leaderboard Table -->
+      <div class="leaderboard-container" id="leaderboardContainer">
+        <div class="empty-state" id="emptyLeaderboard">
+          <span class="empty-icon">📋</span>
+          <p>No hay participantes aún</p>
+          <p class="empty-sub">Agrega participantes para comenzar la quinela</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Tab: Groups ═══ -->
+    <section class="tab-content" id="sectionGroups">
+      <div class="section-header">
+        <h2>⚽ Grupos del Mundial</h2>
+        <p class="section-subtitle">Inicia sesión para registrar tus predicciones</p>
+      </div>
+
+      <!-- Participant Login Card -->
+      <div class="participant-login-card participant-selector-card" id="participantLoginCard">
+        <label style="margin-right: 10px;">Acceso de Participantes:</label>
+        <div class="input-row" style="flex: 1;">
+          <input type="text" id="loginName" placeholder="Nombre...">
+          <input type="password" id="loginPassword" placeholder="Contraseña...">
+          <button class="btn btn-primary" id="btnParticipantLogin">Entrar</button>
+        </div>
+      </div>
+
+      <!-- Logged in state header -->
+      <div class="participant-header-card" id="participantHeaderCard" style="display:none; align-items: center; justify-content: space-between; background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius-lg); border: 1px solid var(--border); margin-bottom: 24px; box-shadow: var(--shadow-sm);">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="profile-avatar-mini" id="headerAvatar" onclick="openProfileModal()" title="Editar Perfil">
+            <img src="" alt="Avatar" id="headerAvatarImg">
+            <div class="avatar-edit-overlay">📷</div>
+          </div>
+          <div>
+            <span style="color: var(--text-muted); font-size: 0.8rem;">Sesión iniciada como:</span>
+            <strong style="display: block; font-size: 1.2rem; color: var(--accent-bright);" id="loggedInName"></strong>
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;" id="loggedInNickname"></span>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-secondary" onclick="openProfileModal()" style="padding: 8px 14px; font-size: 0.8rem;">⚙️ Mi Perfil</button>
+          <button class="btn btn-danger" id="btnParticipantLogout" style="padding: 8px 16px;">Cerrar Sesión</button>
+        </div>
+      </div>
+
+      <!-- Groups Grid -->
+      <div class="groups-grid" id="groupsGrid" style="display: none;">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- ═══ Tab: Tendencias (Estadísticas) ═══ -->
+    <section class="tab-content" id="sectionTendencias">
+      <div class="section-header">
+        <h2>📊 Tendencias de Apuestas</h2>
+        <p class="section-subtitle">Descubre por qué equipos está votando la mayoría</p>
+      </div>
+      
+      <div class="tendencias-container" id="tendenciasContainer">
+        <!-- Populated by JS -->
+        <div class="empty-state">
+          <span class="empty-icon">⏳</span>
+          <p>Cargando tendencias...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Tab: Knockout Bracket ═══ -->
+    <section class="tab-content" id="sectionKnockout">
+      <div class="section-header">
+        <h2>🏟️ Fase de Eliminación Directa</h2>
+        <p class="section-subtitle">Sigue el camino de los equipos hacia la gran final</p>
+      </div>
+
+      <!-- Round filter tabs -->
+      <div class="knockout-round-tabs" id="knockoutRoundTabs">
+        <button class="knockout-round-tab active" data-round="R32">Eliminatoria de 32</button>
+        <button class="knockout-round-tab" data-round="R16">Octavos de Final</button>
+        <button class="knockout-round-tab" data-round="QF">Cuartos de Final</button>
+        <button class="knockout-round-tab" data-round="SF">Semifinales</button>
+        <button class="knockout-round-tab" data-round="F">Final</button>
+      </div>
+
+      <!-- Bracket container -->
+      <div class="bracket-scroll-container">
+        <div class="bracket-container" id="bracketContainer">
+          <!-- Populated by JS -->
+          <div class="empty-state">
+            <span class="empty-icon">⏳</span>
+            <p>Cargando bracket...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Tab: Admin ═══ -->
+    <section class="tab-content" id="sectionAdmin">
+      <div class="section-header">
+        <h2>🛡️ Panel de Administrador</h2>
+        <p class="section-subtitle">Registra los resultados oficiales de cada partido</p>
+      </div>
+
+      <!-- Admin Password -->
+      <div class="admin-lock" id="adminLock">
+        <span class="lock-icon">🔒</span>
+        <h3>Acceso Restringido</h3>
+        <p>Ingresa la contraseña de administrador</p>
+        <div class="input-row">
+          <input type="password" id="adminPassword" placeholder="Contraseña...">
+          <button class="btn btn-primary" id="btnAdminLogin">Entrar</button>
+        </div>
+      </div>
+
+      <div class="admin-panel" id="adminPanel" style="display:none;">
+        <div class="admin-header-actions" style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+          <button class="btn btn-danger" id="btnAdminLogout">
+            <span class="tab-icon">🔒</span> Cerrar Sesión
+          </button>
+        </div>
+
+        <!-- Add Participant Form (Admin Only) -->
+        <div class="add-participant-card" style="margin-bottom: 30px;">
+          <h3>👤 Agregar Participante a la Quinela</h3>
+          <div class="input-row">
+            <input type="text" id="participantName" placeholder="Nombre del participante..." maxlength="30">
+            <input type="text" id="participantPassword" placeholder="Contraseña..." maxlength="20">
+            <button class="btn btn-primary" id="btnAddParticipant">
+              <span>+</span> Agregar
+            </button>
+          </div>
+          <p class="capacity-text" id="capacityText">0/50 participantes</p>
+        </div>
+
+        <!-- Create Test Match -->
+        <div class="add-participant-card" style="margin-bottom: 30px;">
+          <h3>⚽ Agregar Partido de Prueba</h3>
+          <form id="formTestMatch" style="display: flex; flex-direction: column; gap: 10px;">
+            <div class="input-row">
+              <input type="text" id="testTeamA" name="team_a" placeholder="Equipo Local..." maxlength="20" required>
+              <input type="file" id="testFlagA" name="flag_a" accept="image/*" title="Bandera Local" style="padding: 9px; flex: 0.5;">
+            </div>
+            <div class="input-row">
+              <input type="text" id="testTeamB" name="team_b" placeholder="Equipo Visitante..." maxlength="20" required>
+              <input type="file" id="testFlagB" name="flag_b" accept="image/*" title="Bandera Visitante" style="padding: 9px; flex: 0.5;">
+            </div>
+            <div class="input-row">
+              <input type="datetime-local" id="testDatetime" name="match_datetime" title="Fecha y Hora del Partido" style="flex: 1; padding: 9px;" required>
+            </div>
+            <button type="submit" class="btn btn-primary" id="btnTestMatch" style="background: linear-gradient(135deg, var(--gold), var(--bronze)); color: black; box-shadow: 0 4px 15px rgba(251, 191, 36, 0.4); justify-content: center;">
+              <span>+</span> Crear Partido
+            </button>
+          </form>
+        </div>
+
+        <!-- Tournament Phase Control -->
+        <div class="add-participant-card phase-control-card" style="margin-bottom: 30px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3>🏆 Control de Torneo</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+                Termina la Fase de Grupos y genera el Bracket de Eliminatorias con los 32 mejores equipos.
+              </p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn btn-primary" id="btnResetPhase" style="background: transparent; border: 1px solid var(--red); color: var(--red); padding: 10px 14px;" title="Reiniciar a Fase de Grupos">
+                <span>🔄</span> Reiniciar
+              </button>
+              <button type="button" class="btn btn-primary" id="btnAdvancePhase" style="background: linear-gradient(135deg, var(--accent), var(--accent-bright)); color: white; border: none; padding: 10px 18px;">
+                <span>⚡</span> Empezar Eliminatorias
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bet Control -->
+        <div class="add-participant-card bets-control-card" style="margin-bottom: 30px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3>🎰 Control de Apuestas</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Habilita o deshabilita las apuestas para todos los participantes.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="bets-status-label" id="betsStatusLabel">Habilitadas</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Predictions Visibility Control -->
+        <div class="add-participant-card predictions-control-card" style="margin-bottom: 30px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3>👁️ Ver Votos / Predicciones</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Permite a los participantes hacer click sobre cualquier nombre en la tabla general para ver sus apuestas.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="predictions-status-label" id="predictionsStatusLabel">Permitido</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Participant History Viewer -->
+        <div class="add-participant-card history-card" style="margin-bottom: 30px;">
+          <h3>📊 Historial de Participantes</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Selecciona un participante para ver todas sus predicciones y resultados.</p>
+          <div class="input-row" style="margin-bottom: 16px;">
+            <select id="historyParticipantSelect">
+              <option value="">— Selecciona un participante —</option>
+            </select>
+          </div>
+          <div id="historyContainer" style="display: none;">
+            <!-- Summary Stats -->
+            <div class="history-summary" id="historySummary"></div>
+            <!-- Predictions List -->
+            <div class="history-predictions" id="historyPredictions"></div>
+          </div>
+        </div>
+
+        <!-- Theme Picker -->
+        <div class="add-participant-card" style="margin-bottom: 30px; border-color: var(--primary);">
+          <h3>🎨 Color del Torneo (Tema)</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Cambia el color de la página para celebrar a un equipo.</p>
+          <div class="input-row">
+            <input type="color" id="themeColorPicker" value="#3b82f6" style="padding: 0; width: 60px; height: 40px; border: none; cursor: pointer; border-radius: 8px;">
+            <button class="btn btn-primary" id="btnSaveTheme" style="flex: 1;">Aplicar a Todos</button>
+          </div>
+        </div>
+
+        <!-- Points Configuration -->
+        <div class="add-participant-card" style="margin-bottom: 30px;">
+          <h3>🎯 Configuración de Puntos</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Define cuántos puntos se otorgan por acertar al equipo ganador y por acertar un empate.</p>
+          <div class="input-row" style="align-items: center;">
+            <div style="flex: 1;">
+              <label for="inputPointsWin" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Puntos por Acierto (Gana)</label>
+              <input type="number" id="inputPointsWin" value="3" min="0" max="100" style="width: 100%;">
+            </div>
+            <div style="flex: 1;">
+              <label for="inputPointsDraw" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Puntos por Empate (Acierto)</label>
+              <input type="number" id="inputPointsDraw" value="1" min="0" max="100" style="width: 100%;">
+            </div>
+            <button class="btn btn-primary" id="btnSavePoints" style="align-self: flex-end; height: 44px;">
+              Guardar Puntos
+            </button>
+          </div>
+        </div>
+
+        <!-- Danger Zone: Reset Matches -->
+        <div class="add-participant-card" style="margin-bottom: 30px; border-color: var(--red); background: rgba(248, 113, 113, 0.05);">
+          <h3 style="color: var(--red);">⚠️ Zona de Peligro</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Reinicia todos los marcadores oficiales a pendientes. Las predicciones de los participantes NO se borrarán.</p>
+          <div class="input-row">
+            <button class="btn btn-danger" id="btnResetMatches" style="flex: 1; justify-content: center; background: linear-gradient(135deg, var(--red), darkred);">
+              <span class="tab-icon">🔄</span> Limpiar Todos los Marcadores
+            </button>
+          </div>
+        </div>
+
+        <div class="admin-groups" id="adminGroups">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Share Button -->
+  <button class="share-fab" id="btnShare" title="Compartir link">
+    🔗
+  </button>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Flag Context Menu -->
+  <div id="flagContextMenu" class="flag-menu">
+    <button class="flag-menu-btn btn-win" id="btnFestejo">🎉 Festejar Victoria</button>
+    <button class="flag-menu-btn btn-lose" id="btnDerrota">🌧️ Mostrar Derrota</button>
+  </div>
+
+  <!-- Participant History Modal -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal-content">
+      <button class="modal-close" id="btnModalClose">✕</button>
+      <div class="modal-header">
+        <h3 id="modalParticipantName">Participante</h3>
+        <p class="modal-subtitle">Historial de predicciones y resultados</p>
+      </div>
+      <div id="modalHistoryContainer" style="width: 100%;">
+        <div class="empty-state">
+          <span class="empty-icon">⏳</span>
+          <p>Cargando historial...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Edit Modal -->
+  <div class="modal-overlay" id="profileModal">
+    <div class="modal-content profile-modal">
+      <button class="modal-close" id="btnProfileClose">✕</button>
+      <div class="modal-header" style="text-align: center;">
+        <h3>👤 Mi Perfil</h3>
+        <p class="modal-subtitle">Personaliza tu identidad en la quinela</p>
+      </div>
+
+      <div class="profile-form">
+        <!-- Avatar Upload -->
+        <div class="profile-avatar-container" id="profileAvatarContainer">
+          <img src="" alt="Avatar" id="profileAvatarPreview" class="profile-avatar-img">
+          <label for="profileAvatarInput" class="profile-avatar-overlay">
+            <span>📷</span>
+            <small>Cambiar foto</small>
+          </label>
+          <input type="file" id="profileAvatarInput" accept="image/*" style="display: none;">
+        </div>
+
+        <!-- Nickname -->
+        <div style="width: 100%; margin-top: 16px;">
+          <label style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; display: block;">Apodo público</label>
+          <input type="text" id="profileNickname" placeholder="Ej: El Crack, La Máquina..." maxlength="20" style="width: 100%; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-base); color: var(--text); font-size: 1rem;">
+          <small style="color: var(--text-muted); display: block; margin-top: 4px;">Así te verán los demás en la Tabla de Posiciones</small>
+        </div>
+
+        <!-- Stats -->
+        <div class="profile-stats-row" id="profileStatsRow">
+          <div class="profile-stat">
+            <span class="profile-stat-value" id="profileStatPoints">0</span>
+            <span class="profile-stat-label">Puntos</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-value" id="profileStatAciertos">0</span>
+            <span class="profile-stat-label">Aciertos</span>
+          </div>
+          <div class="profile-stat">
+            <span class="profile-stat-value" id="profileStatRank">-</span>
+            <span class="profile-stat-label">Posición</span>
+          </div>
+        </div>
+
+        <!-- Save -->
+        <button type="button" class="btn btn-primary" id="btnSaveProfile" style="width: 100%; padding: 12px; margin-top: 12px; justify-content: center; font-size: 1rem;">
+          <span class="btn-text">💾 Guardar Cambios</span>
+          <span class="btn-spinner" style="display:none;">⏳ Guardando...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- Knockout Start Celebration Modal -->
+  <div class="modal-overlay" id="knockoutStartModal">
+    <div class="modal-content classified-modal">
+      <button class="modal-close" id="btnClassifiedClose">✕</button>
+      <div class="modal-header" style="text-align: center;">
+        <h3 style="font-size: 1.4rem; color: var(--gold);">🏆 ¡FASE FINAL CONFIRMADA!</h3>
+        <p class="modal-subtitle">Los clasificados están listos para la gloria</p>
+      </div>
+      <div class="classified-grid" id="classifiedGrid">
+        <!-- Populated by JS -->
+      </div>
+      <button type="button" class="btn btn-primary" id="btnGoToVersus" style="width: 100%; padding: 14px; margin-top: 16px; justify-content: center; font-size: 1rem; background: linear-gradient(135deg, var(--gold), var(--bronze)); color: #000; font-weight: 800;">
+        🔥 Ver Eliminatorias
+      </button>
+    </div>
+  </div>
+
+  <!-- Fullscreen Match Winner Celebration Overlay -->
+  <div id="matchWinnerCelebration" class="celebration-overlay-fs">
+    <div class="celebration-backdrop"></div>
+    <div class="celebration-content-card">
+      <div class="celebration-header-title">🔥 ¡MARCADOR OFICIAL! 🔥</div>
+      <div class="celebration-teams-row">
+        <div class="celebration-team-card" id="celTeamA">
+          <img src="" id="celFlagA" class="celebration-flag-img">
+          <span class="celebration-team-text" id="celNameA"></span>
+        </div>
+        <div class="celebration-vs-text">VS</div>
+        <div class="celebration-team-card" id="celTeamB">
+          <img src="" id="celFlagB" class="celebration-flag-img">
+          <span class="celebration-team-text" id="celNameB"></span>
+        </div>
+      </div>
+      <div class="celebration-result-card" id="celebrationResultBanner">
+        <div class="celebration-winner-title" id="celebrationResultTitle">🏆 ¡GANADOR! 🏆</div>
+        <div class="celebration-winner-display" id="celebrationResultWinner">
+          <img src="" id="celWinnerFlag" class="celebration-winner-flag-img">
+          <span id="celWinnerName" class="celebration-winner-name-text"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
