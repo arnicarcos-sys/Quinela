@@ -1,1 +1,13 @@
-"node_modules/\npublic/uploads/*\n*.db\n*.log\n.DS_Store" 
+node_modules/
+public/uploads/*
+!public/uploads/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+*.log
+.DS_Store
+cloudflared.exe
+cloudflared
+tunnel.js
+compartir_link.bat
+iniciar_quinela.bat
