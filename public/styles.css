@@ -2822,3 +2822,63 @@ select {
     filter: drop-shadow(0 0 8px rgba(212, 163, 89, 0.9));
   }
 }
+
+/* Mini Confetti Badge for Celebrations */
+.mini-confetti-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 14px;
+  animation: float-badge 2s infinite ease-in-out;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  z-index: 5;
+}
+
+@keyframes float-badge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Mini Rank Badges for Leaderboard */
+.mini-rank-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 14px;
+  animation: float-badge 2s infinite ease-in-out;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  z-index: 5;
+}
+
+.gold-badge { 
+  background: rgba(251, 191, 36, 0.2); 
+  border: 1px solid var(--gold); 
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+}
+
+.bronze-badge { 
+  background: rgba(217, 119, 6, 0.2); 
+  border: 1px solid var(--bronze); 
+  box-shadow: 0 0 10px rgba(217, 119, 6, 0.4);
+}
+
+.silver-badge { 
+  background: rgba(148, 163, 184, 0.2); 
+  border: 1px solid var(--silver); 
+  box-shadow: 0 0 10px rgba(148, 163, 184, 0.4);
+}

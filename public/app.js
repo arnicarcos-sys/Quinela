@@ -169,6 +169,17 @@ function setupInteractiveFlags() {
     void currentFlagTarget.offsetWidth; // Trigger reflow
     currentFlagTarget.classList.add('celebrate-anim');
     
+    const parent = currentFlagTarget.parentElement;
+    if (parent && parent.style.position === 'relative') {
+      let badge = parent.querySelector('.mini-confetti-badge');
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'mini-confetti-badge';
+        badge.textContent = '🎉';
+        parent.appendChild(badge);
+      }
+    }
+    
     if (window.confetti) {
       const rect = currentFlagTarget.getBoundingClientRect();
       const x = (rect.left + rect.width / 2) / window.innerWidth;
@@ -196,6 +207,12 @@ function setupInteractiveFlags() {
     currentFlagTarget.classList.remove('celebrate-anim', 'defeat-anim');
     void currentFlagTarget.offsetWidth;
     currentFlagTarget.classList.add('defeat-anim');
+    
+    const parent = currentFlagTarget.parentElement;
+    if (parent && parent.style.position === 'relative') {
+      const badge = parent.querySelector('.mini-confetti-badge');
+      if (badge) badge.remove();
+    }
     
     $('#flagContextMenu').classList.remove('show');
     
@@ -458,7 +475,12 @@ function renderLeaderboard() {
               <span class="rank-badge ${rankClass}">${medal || rank}</span>
             </td>
             <td class="name-cell">
-              <img class="leaderboard-avatar ${avatarClass}" src="${avatarSrc}" alt="${escapeHtml(p.name)}" onerror="this.src='${DEFAULT_AVATAR}'">
+              <div style="position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px;">
+                <img class="leaderboard-avatar ${avatarClass}" src="${avatarSrc}" alt="${escapeHtml(p.name)}" onerror="this.src='${DEFAULT_AVATAR}'">
+                ${rank === 1 ? '<span class="mini-rank-badge gold-badge">✨</span>' : ''}
+                ${rank === 2 ? '<span class="mini-rank-badge bronze-badge">✨</span>' : ''}
+                ${rank === 3 ? '<span class="mini-rank-badge silver-badge">✨</span>' : ''}
+              </div>
               ${displayName}
             </td>
             <td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>
@@ -642,6 +664,10 @@ function renderKnockoutVersus(container) {
     const teamAClass = hasResult ? (match.result === 'A' ? 'winner-team' : 'loser-team') : '';
     const teamBClass = hasResult ? (match.result === 'B' ? 'winner-team' : 'loser-team') : '';
     
+    // Effects
+    const effectA = flagEffectsData[match.flag_a] ? flagEffectsData[match.flag_a].effect : '';
+    const effectB = flagEffectsData[match.flag_b] ? flagEffectsData[match.flag_b].effect : '';
+    
     // Prediction buttons
     let predictionHtml = '';
     if (selectedParticipant && !hasResult && !isTBD && betsEnabled) {
@@ -682,12 +708,18 @@ function renderKnockoutVersus(container) {
       ${dateHtml}
       <div class="vs-teams-row">
         <div class="vs-team ${teamAClass}">
-          <img class="vs-team-flag" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+          <div style="position: relative; display: inline-flex;">
+            <img class="vs-team-flag ${effectA}" data-flag="${match.flag_a}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+            ${effectA === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+          </div>
           <span class="vs-team-name">${match.team_a}</span>
         </div>
         <span class="vs-badge">VS</span>
         <div class="vs-team ${teamBClass}">
-          <img class="vs-team-flag" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+          <div style="position: relative; display: inline-flex;">
+            <img class="vs-team-flag ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+            ${effectB === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+          </div>
           <span class="vs-team-name">${match.team_b}</span>
         </div>
       </div>
@@ -783,13 +815,19 @@ function renderMatchCard(match) {
       ${match.match_datetime ? `<div class="match-date" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-bottom: 8px;">🕒 ${new Date(match.match_datetime).toLocaleString('es-MX', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>` : ''}
       <div class="match-teams">
         <div class="match-team">
-          <img class="team-flag ${match.result === 'A' ? 'winner-flag' : ''} ${effectA}" data-flag="${match.flag_a}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+          <div style="position: relative; display: inline-flex;">
+            <img class="team-flag ${match.result === 'A' ? 'winner-flag' : ''} ${effectA}" data-flag="${match.flag_a}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+            ${effectA === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+          </div>
           <span class="team-name">${match.team_a}</span>
         </div>
         <span class="match-vs">VS</span>
         <div class="match-team team-b">
           <span class="team-name">${match.team_b}</span>
-          <img class="team-flag ${match.result === 'B' ? 'winner-flag' : ''} ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+          <div style="position: relative; display: inline-flex;">
+            <img class="team-flag ${match.result === 'B' ? 'winner-flag' : ''} ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+            ${effectB === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+          </div>
         </div>
       </div>
       ${!noParticipant ? `
