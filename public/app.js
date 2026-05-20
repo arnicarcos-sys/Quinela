@@ -2613,8 +2613,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('#profileAvatarInput').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      if (file.size > 2 * 1024 * 1024) {
-        showToast('La imagen no puede pesar más de 2MB', 'error');
+      if (file.size > 8 * 1024 * 1024) {
+        showToast('La imagen no puede pesar más de 8MB', 'error');
         return;
       }
       profileAvatarFile = file;
