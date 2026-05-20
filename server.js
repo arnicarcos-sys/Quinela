@@ -391,6 +391,22 @@ app.delete('/api/participants/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// Get all predictions globally (respects show_predictions setting)
+app.get('/api/predictions/all', (req, res) => {
+  const showPredictions = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
+  if (showPredictions && showPredictions.value === 'false') {
+    return res.json({ enabled: false, data: [] });
+  }
+  
+  const predictions = db.prepare(`
+    SELECT pr.match_id, pr.prediction, p.name, p.nickname
+    FROM predictions pr
+    JOIN participants p ON pr.participant_id = p.id
+  `).all();
+  
+  res.json({ enabled: true, data: predictions });
+});
+
 // Get predictions for a participant
 app.get('/api/predictions/:participantId', (req, res) => {
   const predictions = db.prepare(

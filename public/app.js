@@ -211,11 +211,12 @@ function setupInteractiveFlags() {
 }
 
 let tournamentPhase = 'groups';
+window.allGlobalPredictions = { enabled: false, data: [] };
 
 // ─── Data Loading ───────────────────────────────────────
 async function loadData() {
   try {
-    const [matchesRes, participantsRes, statsRes, settingsRes, predStatsRes, standingsRes, flagsRes, allMatchesRes] = await Promise.all([
+    const [matchesRes, participantsRes, statsRes, settingsRes, predStatsRes, standingsRes, flagsRes, allMatchesRes, allPredsRes] = await Promise.all([
       fetch('/api/matches'),
       fetch('/api/participants'),
       fetch('/api/stats'),
@@ -223,7 +224,8 @@ async function loadData() {
       fetch('/api/stats/predictions'),
       fetch('/api/standings'),
       fetch('/api/flags/effects'),
-      fetch('/api/matches/all')
+      fetch('/api/matches/all'),
+      fetch('/api/predictions/all')
     ]);
     
     matchesData = await matchesRes.json();
@@ -233,6 +235,10 @@ async function loadData() {
     predictionStats = await predStatsRes.json();
     standingsData = await standingsRes.json();
     flagEffectsData = await flagsRes.json();
+    
+    if (allPredsRes.ok) {
+      window.allGlobalPredictions = await allPredsRes.json();
+    }
     
     const allMatchesFlat = await allMatchesRes.json();
     if (!window.previousMatchesFlat) {
@@ -1335,6 +1341,10 @@ async function togglePredictionsVisibility() {
       showPredictions = newState;
       updatePredictionsUI();
       renderLeaderboard();
+      await loadData(); // Reload predictions data for tooltips
+      if (document.getElementById('sectionKnockout').classList.contains('active')) {
+        renderBracket();
+      }
       showToast(newState ? '✅ Visibilidad de votos activada' : '🔒 Visibilidad de votos desactivada', 'success');
     }
   } catch (err) {
@@ -2329,6 +2339,47 @@ function createTeamSlot(match, slot) {
         loadBracket();
       });
     }
+  }
+  
+  // Hover Tooltip for voters (only if show_predictions is enabled and not TBD)
+  if (window.allGlobalPredictions && window.allGlobalPredictions.enabled && !isTBD) {
+    el.addEventListener('mouseenter', () => {
+      const voters = window.allGlobalPredictions.data.filter(p => p.match_id === match.id && p.prediction === slot);
+      if (voters.length === 0) return;
+      
+      const tooltip = document.createElement('div');
+      tooltip.className = 'voters-ghost-tooltip';
+      
+      const title = document.createElement('div');
+      title.className = 'voters-tooltip-title';
+      title.textContent = `Votaron por ${team}:`;
+      tooltip.appendChild(title);
+      
+      const list = document.createElement('div');
+      list.className = 'voters-tooltip-list';
+      voters.forEach(v => {
+        const item = document.createElement('div');
+        item.className = 'voter-item';
+        item.textContent = v.nickname ? `"${v.nickname}"` : v.name;
+        list.appendChild(item);
+      });
+      tooltip.appendChild(list);
+      
+      el.appendChild(tooltip);
+      
+      // Animate in next frame
+      requestAnimationFrame(() => {
+        tooltip.classList.add('show');
+      });
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      const tooltip = el.querySelector('.voters-ghost-tooltip');
+      if (tooltip) {
+        tooltip.classList.remove('show');
+        setTimeout(() => tooltip.remove(), 200); // Wait for fade out animation
+      }
+    });
   }
   
   return el;
