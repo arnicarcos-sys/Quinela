@@ -909,6 +909,41 @@ select {
   color: var(--red);
 }
 
+/* ─── Rules FAB ───────────────────────────────────────── */
+.rules-fab {
+  position: fixed;
+  bottom: 96px; /* Above the virus button which is at 24px + 56px height + 16px gap */
+  right: 24px;
+  width: auto;
+  height: 48px;
+  padding: 0 20px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.9));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--gold);
+  font-family: 'Inter', sans-serif;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.rules-fab:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 15px rgba(251, 191, 36, 0.3);
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(0, 0, 0, 0.95));
+  color: #fff;
+}
+
 /* ─── Virus Gratis FAB ────────────────────────────────── */
 .virus-fab {
   position: fixed;
