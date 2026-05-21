@@ -294,8 +294,16 @@ app.get('/api/matches/all', (req, res) => {
 app.get('/api/participants', (req, res) => {
   const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
   const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+  const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
+  
   const ptsWin = pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3;
   const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
+  const currentPhase = phaseRow ? phaseRow.value : 'groups';
+
+  let matchFilter = "m.group_name NOT IN ('R32','R16','QF','SF','Final', 'Prueba')";
+  if (currentPhase === 'knockout') {
+    matchFilter = "m.group_name IN ('R32','R16','QF','SF','Final')";
+  }
 
   const participants = db.prepare(`
     SELECT p.id, p.name, p.nickname, p.avatar,
@@ -307,10 +315,10 @@ app.get('/api/participants', (req, res) => {
         END
       ), 0) as points,
       COUNT(CASE WHEN m.result IS NOT NULL AND pr.prediction = m.result THEN 1 END) as aciertos,
-      COUNT(pr.id) as total_predictions
+      COUNT(m.id) as total_predictions
     FROM participants p
     LEFT JOIN predictions pr ON p.id = pr.participant_id
-    LEFT JOIN matches m ON pr.match_id = m.id
+    LEFT JOIN matches m ON pr.match_id = m.id AND ${matchFilter}
     GROUP BY p.id
     ORDER BY points DESC, aciertos DESC, p.name ASC
   `).all();

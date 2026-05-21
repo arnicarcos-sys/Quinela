@@ -287,8 +287,15 @@
 
         <!-- Participant History Viewer -->
         <div class="add-participant-card history-card" style="margin-bottom: 30px;">
-          <h3>📊 Historial de Participantes</h3>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Selecciona un participante para ver todas sus predicciones y resultados.</p>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 15px;">
+            <div>
+              <h3>📊 Historial de Participantes</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Selecciona un participante para ver todas sus predicciones y resultados.</p>
+            </div>
+            <button class="btn btn-primary" id="btnDownloadReport" style="background: linear-gradient(135deg, #10b981, #059669); color: white;" onclick="downloadCSVReport()">
+              <span class="tab-icon" style="margin-right: 4px;">📥</span> Descargar Reporte (CSV)
+            </button>
+          </div>
           <div class="input-row" style="margin-bottom: 16px;">
             <select id="historyParticipantSelect">
               <option value="">— Selecciona un participante —</option>

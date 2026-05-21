@@ -3118,3 +3118,39 @@ async function pollMatchUpdates() {
 // Start polling for real-time match completions every 8 seconds
 setInterval(pollMatchUpdates, 8000);
 
+// ─── CSV Report Export ──────────────────────────────────────
+window.downloadCSVReport = function() {
+  if (!participantsData || participantsData.length === 0) {
+    showToast('No hay datos de participantes para exportar', 'error');
+    return;
+  }
+
+  // Define headers
+  const headers = ['Posición', 'Participante', 'Apodo', 'Aciertos', 'Apuestas Totales', 'Puntos Totales'];
+  
+  // Build CSV rows
+  const csvRows = [];
+  csvRows.push(headers.join(','));
+  
+  participantsData.forEach((p, index) => {
+    const pos = index + 1;
+    const name = `"${(p.name || '').replace(/"/g, '""')}"`;
+    const nickname = `"${(p.nickname || '').replace(/"/g, '""')}"`;
+    
+    csvRows.push([pos, name, nickname, p.aciertos, p.total_predictions, p.points].join(','));
+  });
+  
+  // Create Blob and download
+  const csvContent = csvRows.join('\n');
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' }); // \uFEFF is BOM for Excel UTF-8 support
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `quinela_reporte_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  showToast('📥 Reporte descargado con éxito', 'success');
+};
