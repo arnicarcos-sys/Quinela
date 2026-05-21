@@ -119,8 +119,12 @@ function setupEventListeners() {
     $('#btnResetPhase').addEventListener('click', resetTournamentPhase);
   }
 
-  // Share
-  $('#btnShare').addEventListener('click', shareLink);
+  // Virus Gratis
+  $('#btnVirus').addEventListener('click', openVirusModal);
+  $('#btnVirusClose').addEventListener('click', () => $('#virusModal').classList.remove('show'));
+  $('#virusModal').addEventListener('click', (e) => {
+    if (e.target === $('#virusModal')) $('#virusModal').classList.remove('show');
+  });
 
   // Modal close
   const historyModal = $('#historyModal');
@@ -292,6 +296,7 @@ async function loadData() {
     renderGroups();
     renderAdminPanel();
     renderTendencias();
+    loadFunFacts();
   } catch (err) {
     showToast('Error al cargar datos', 'error');
     console.error(err);
@@ -407,6 +412,7 @@ function participantLogout() {
   
   renderGroups();
   renderLeaderboard();
+  renderBracket();
   showToast('🔒 Has cerrado sesión', 'success');
 }
 
@@ -648,7 +654,7 @@ function renderKnockoutVersus(container) {
     const match = roundMatches[i];
     const isTBD = match.team_a === 'A definir' || match.team_b === 'A definir';
     const hasResult = match.result !== null;
-    const prediction = currentPredictions[match.id];
+    const prediction = tempPredictions[match.id] || currentPredictions[match.id];
     
     const card = document.createElement('div');
     card.className = `vs-card ${hasResult ? 'has-result' : ''} ${isTBD ? 'tbd-card' : ''}`;
@@ -728,6 +734,18 @@ function renderKnockoutVersus(container) {
     `;
     
     container.appendChild(card);
+  }
+
+  if (selectedParticipant && roundMatches.length > 0) {
+    const footer = document.createElement('div');
+    footer.style = "padding: 12px 16px; margin-top: 20px; display: flex; justify-content: flex-end; width: 100%; box-sizing: border-box;";
+    footer.innerHTML = `
+      <button class="btn btn-primary btn-save-group" onclick="saveKnockoutBets(this)">
+        <span class="btn-text">💾 Guardar Apuestas</span>
+        <span class="btn-spinner" style="display:none;">⏳</span>
+      </button>
+    `;
+    container.appendChild(footer);
   }
 }
 
@@ -968,6 +986,12 @@ window.setLocalPrediction = function(matchId, prediction) {
     return;
   }
   tempPredictions[matchId] = prediction;
+  
+  if (tournamentPhase === 'knockout') {
+    if (document.getElementById('sectionKnockout').classList.contains('active')) {
+      loadBracket();
+    }
+  }
   renderGroups();
 };
 
@@ -1004,7 +1028,94 @@ async function setPrediction(matchId, prediction) {
 }
 
 async function setVsPrediction(matchId, prediction) {
-  await setPrediction(matchId, prediction);
+  setLocalPrediction(matchId, prediction);
+}
+
+async function saveKnockoutBets(btn) {
+  if (!selectedParticipant) {
+    showToast('Inicia sesión para guardar tus apuestas', 'error');
+    return;
+  }
+  
+  const knockoutMatches = [];
+  for (const round of ['R32', 'R16', 'QF', 'SF', 'Final']) {
+    if (bracketData[round]) knockoutMatches.push(...bracketData[round]);
+  }
+  
+  const predictionsToSave = [];
+  for (const m of knockoutMatches) {
+    const pred = tempPredictions[m.id];
+    if (pred && pred !== currentPredictions[m.id]) {
+      predictionsToSave.push({ match_id: m.id, prediction: pred });
+    }
+  }
+  
+  if (predictionsToSave.length === 0) {
+    showToast('No hay cambios para guardar', 'error');
+    return;
+  }
+  
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner">⏳ Guardando...</span>';
+  btn.classList.add('saving');
+  
+  try {
+    const res = await fetch('/api/predictions/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        participant_id: selectedParticipant.id,
+        predictions: predictionsToSave
+      })
+    });
+    
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Error al guardar apuestas', 'error');
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      btn.classList.remove('saving');
+      return;
+    }
+    
+    for (const p of predictionsToSave) {
+      currentPredictions[p.match_id] = p.prediction;
+    }
+    
+    btn.innerHTML = '<span class="btn-text">✅ ¡Guardado!</span>';
+    btn.classList.replace('saving', 'saved');
+    btn.classList.remove('btn-primary');
+    btn.style.background = 'var(--green)';
+    btn.style.color = '#fff';
+    
+    if (window.confetti) {
+      const rect = btn.getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+      confetti({ particleCount: 30, spread: 40, origin: { x, y }, colors: ['#34d399', '#ffffff'] });
+    }
+    
+    await loadData();
+    if (document.getElementById('sectionKnockout').classList.contains('active')) {
+       loadBracket();
+    }
+    
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      btn.classList.remove('saved');
+      btn.classList.add('btn-primary');
+      btn.style.background = '';
+      btn.style.color = '';
+    }, 2000);
+    
+  } catch (err) {
+    showToast('Error al conectar con el servidor', 'error');
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+    btn.classList.remove('saving');
+  }
 }
 
 // ─── Admin ──────────────────────────────────────────────
@@ -1982,30 +2093,124 @@ async function saveTheme() {
   }
 }
 
-// ─── Share ──────────────────────────────────────────────
-function shareLink() {
-  const url = window.location.href;
-  
-  if (navigator.share) {
-    navigator.share({
-      title: '⚽ Quinela Mundial 2026',
-      text: '¡Únete a mi quinela del Mundial 2026! Predice los resultados y compite conmigo 🏆',
-      url: url
-    }).catch(() => {});
-  } else if (navigator.clipboard) {
-    navigator.clipboard.writeText(url).then(() => {
-      showToast('🔗 Link copiado al portapapeles', 'success');
-    });
-  } else {
-    // Fallback
-    const input = document.createElement('input');
-    input.value = url;
-    document.body.appendChild(input);
-    input.select();
-    document.execCommand('copy');
-    document.body.removeChild(input);
-    showToast('🔗 Link copiado al portapapeles', 'success');
+// ─── Virus Gratis (Fun Facts) ───────────────────────────
+let funFactsData = [];
+
+async function loadFunFacts() {
+  try {
+    const res = await fetch('/api/fun-facts');
+    funFactsData = await res.json();
+    renderAdminFacts();
+  } catch (err) {
+    console.error('Error loading fun facts:', err);
   }
+}
+
+async function openVirusModal() {
+  const modal = $('#virusModal');
+  const container = $('#virusFactsContainer');
+  
+  modal.classList.add('show');
+  container.innerHTML = `
+    <div class="empty-state">
+      <span class="empty-icon">⏳</span>
+      <p>Cargando...</p>
+    </div>
+  `;
+  
+  try {
+    const res = await fetch('/api/fun-facts');
+    const facts = await res.json();
+    
+    if (facts.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">🧪</span>
+          <p>Aún no hay datos curiosos</p>
+          <p class="empty-sub">El administrador puede agregar datos desde el panel de admin</p>
+        </div>
+      `;
+      return;
+    }
+    
+    container.innerHTML = '';
+    facts.forEach((fact, i) => {
+      const card = document.createElement('div');
+      card.className = 'virus-fact-card';
+      card.style.animationDelay = `${i * 0.07}s`;
+      card.innerHTML = `
+        <span class="virus-fact-number">${facts.length - i}</span>
+        <span class="virus-fact-text">${escapeHtml(fact.text)}</span>
+      `;
+      container.appendChild(card);
+    });
+  } catch (err) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">❌</span>
+        <p>Error al cargar los datos</p>
+      </div>
+    `;
+  }
+}
+
+async function addFunFact() {
+  const input = $('#virusFactInput');
+  const text = input.value.trim();
+  
+  if (!text) {
+    showToast('Escribe un dato curioso primero', 'error');
+    return;
+  }
+  
+  try {
+    const res = await fetch('/api/fun-facts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error || 'Error al agregar dato', 'error');
+      return;
+    }
+    
+    input.value = '';
+    showToast('🦠 Dato curioso agregado', 'success');
+    loadFunFacts();
+  } catch (err) {
+    showToast('Error al conectar con el servidor', 'error');
+  }
+}
+
+async function deleteFunFact(id) {
+  if (!confirm('¿Eliminar este dato curioso?')) return;
+  
+  try {
+    await fetch(`/api/fun-facts/${id}`, { method: 'DELETE' });
+    showToast('🗑️ Dato eliminado', 'success');
+    loadFunFacts();
+  } catch (err) {
+    showToast('Error al eliminar', 'error');
+  }
+}
+
+function renderAdminFacts() {
+  const container = $('#adminFactsList');
+  if (!container) return;
+  
+  if (funFactsData.length === 0) {
+    container.innerHTML = '<p style="font-size: 0.8rem; color: var(--text-muted); text-align: center; padding: 12px;">No hay datos curiosos aún</p>';
+    return;
+  }
+  
+  container.innerHTML = funFactsData.map(f => `
+    <div class="admin-fact-item">
+      <span class="fact-text">${escapeHtml(f.text)}</span>
+      <button class="fact-delete" onclick="deleteFunFact(${f.id})" title="Eliminar">🗑️</button>
+    </div>
+  `).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2017,7 +2222,7 @@ let allTeams = [];
 let activeKnockoutRound = 'R32';
 
 const ROUND_LABELS = {
-  'R32': 'Eliminatoria de 32',
+  'R32': 'Dieciseisavos de final',
   'R16': 'Octavos de Final',
   'QF': 'Cuartos de Final',
   'SF': 'Semifinales',
@@ -2045,6 +2250,11 @@ function renderBracket() {
   if (!container) return;
   
   container.innerHTML = '';
+  
+  const saveContainer = document.getElementById('bracketSaveContainer');
+  if (saveContainer) {
+    saveContainer.style.display = (selectedParticipant && bracketData['R32'] && bracketData['R32'].length > 0) ? 'flex' : 'none';
+  }
   
   // Determine which rounds to show based on active tab
   // Show active round + next rounds for bracket context
@@ -2367,14 +2577,13 @@ function createTeamSlot(match, slot) {
     if (otherTeam !== 'A definir') {
       el.classList.add('predictable');
       
-      const prediction = currentPredictions[match.id];
+      const prediction = tempPredictions[match.id] || currentPredictions[match.id];
       if (prediction === slot) {
         el.classList.add('predicted');
       }
       
       el.addEventListener('click', () => {
-        setPrediction(match.id, slot);
-        loadBracket();
+        setLocalPrediction(match.id, slot);
       });
     }
   }
@@ -2382,40 +2591,64 @@ function createTeamSlot(match, slot) {
   // Hover Tooltip for voters (only if show_predictions is enabled and not TBD)
   if (window.allGlobalPredictions && window.allGlobalPredictions.enabled && !isTBD) {
     el.addEventListener('mouseenter', () => {
+      // Remove any existing tooltip first
+      const existing = el.querySelector('.voters-ghost-tooltip');
+      if (existing) existing.remove();
+
       const voters = window.allGlobalPredictions.data.filter(p => p.match_id === match.id && p.prediction === slot);
       if (voters.length === 0) return;
-      
+
+      // Deduplicate by participant name
+      const seen = new Set();
+      const uniqueVoters = voters.filter(v => {
+        const key = v.name;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
       const tooltip = document.createElement('div');
       tooltip.className = 'voters-ghost-tooltip';
-      
-      const title = document.createElement('div');
-      title.className = 'voters-tooltip-title';
-      title.textContent = `Votaron por ${team}:`;
-      tooltip.appendChild(title);
-      
+
+      // Header with team name and count
+      const header = document.createElement('div');
+      header.className = 'voters-tooltip-header';
+      header.innerHTML = `
+        <span class="voters-tooltip-title">Votaron por ${escapeHtml(team)}</span>
+        <span class="voters-tooltip-count">${uniqueVoters.length}</span>
+      `;
+      tooltip.appendChild(header);
+
+      // Divider
+      const divider = document.createElement('div');
+      divider.className = 'voters-tooltip-divider';
+      tooltip.appendChild(divider);
+
+      // Voter list
       const list = document.createElement('div');
       list.className = 'voters-tooltip-list';
-      voters.forEach(v => {
+      uniqueVoters.forEach(v => {
         const item = document.createElement('div');
         item.className = 'voter-item';
-        item.textContent = v.nickname ? `"${v.nickname}"` : v.name;
+        const displayName = v.nickname ? v.nickname : v.name;
+        item.innerHTML = `<span class="voter-icon">👤</span><span class="voter-name">${escapeHtml(displayName)}</span>`;
         list.appendChild(item);
       });
       tooltip.appendChild(list);
-      
+
       el.appendChild(tooltip);
-      
+
       // Animate in next frame
       requestAnimationFrame(() => {
         tooltip.classList.add('show');
       });
     });
-    
+
     el.addEventListener('mouseleave', () => {
       const tooltip = el.querySelector('.voters-ghost-tooltip');
       if (tooltip) {
         tooltip.classList.remove('show');
-        setTimeout(() => tooltip.remove(), 200); // Wait for fade out animation
+        setTimeout(() => tooltip.remove(), 200);
       }
     });
   }

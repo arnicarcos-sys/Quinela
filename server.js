@@ -1113,6 +1113,50 @@ app.get('/api/stats/predictions', (req, res) => {
   }
 });
 
+// ─── Fun Facts ("Virus Gratis") ──────────────────────────────
+// Create table if not exists
+db.exec(`
+  CREATE TABLE IF NOT EXISTS fun_facts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    text TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+// Get all fun facts
+app.get('/api/fun-facts', (req, res) => {
+  try {
+    const facts = db.prepare('SELECT * FROM fun_facts ORDER BY id DESC').all();
+    res.json(facts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a fun fact (admin)
+app.post('/api/fun-facts', (req, res) => {
+  const { text } = req.body;
+  if (!text || text.trim().length === 0) {
+    return res.status(400).json({ error: 'El dato curioso no puede estar vacío' });
+  }
+  try {
+    const result = db.prepare('INSERT INTO fun_facts (text) VALUES (?)').run(text.trim());
+    res.json({ id: result.lastInsertRowid, text: text.trim() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a fun fact (admin)
+app.delete('/api/fun-facts/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM fun_facts WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Start Server ────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
   const os = require('os');

@@ -147,7 +147,7 @@
 
       <!-- Round filter tabs -->
       <div class="knockout-round-tabs" id="knockoutRoundTabs">
-        <button class="knockout-round-tab active" data-round="R32">Eliminatoria de 32</button>
+        <button class="knockout-round-tab active" data-round="R32">Dieciseisavos de final</button>
         <button class="knockout-round-tab" data-round="R16">Octavos de Final</button>
         <button class="knockout-round-tab" data-round="QF">Cuartos de Final</button>
         <button class="knockout-round-tab" data-round="SF">Semifinales</button>
@@ -163,6 +163,12 @@
             <p>Cargando bracket...</p>
           </div>
         </div>
+      </div>
+      <div id="bracketSaveContainer" style="padding: 16px; display: none; justify-content: flex-end;">
+        <button class="btn btn-primary btn-save-group" onclick="saveKnockoutBets(this)">
+          <span class="btn-text">💾 Guardar Apuestas de Eliminatoria</span>
+          <span class="btn-spinner" style="display:none;">⏳</span>
+        </button>
       </div>
     </section>
 
@@ -325,6 +331,21 @@
           </div>
         </div>
 
+        <!-- Virus Gratis (Fun Facts) Manager -->
+        <div class="add-participant-card virus-admin-card" style="margin-bottom: 30px; border-color: #10b981;">
+          <h3>🦠 Virus Gratis — Datos Curiosos</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Agrega datos curiosos del mundial. Los participantes podrán verlos con el botón 🦠 flotante.</p>
+          <div class="input-row" style="margin-bottom: 16px;">
+            <textarea id="virusFactInput" placeholder="Escribe un dato curioso..." maxlength="300" rows="2" style="flex: 1; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
+            <button class="btn btn-primary" id="btnAddFact" style="align-self: flex-end; background: linear-gradient(135deg, #10b981, #059669); padding: 10px 18px;" onclick="addFunFact()">
+              <span>+</span> Agregar
+            </button>
+          </div>
+          <div id="adminFactsList" class="admin-facts-list">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
         <!-- Danger Zone: Reset Matches -->
         <div class="add-participant-card" style="margin-bottom: 30px; border-color: var(--red); background: rgba(248, 113, 113, 0.05);">
           <h3 style="color: var(--red);">⚠️ Zona de Peligro</h3>
@@ -344,9 +365,9 @@
 
   </main>
 
-  <!-- Share Button -->
-  <button class="share-fab" id="btnShare" title="Compartir link">
-    🔗
+  <!-- Virus Gratis Button -->
+  <button class="virus-fab" id="btnVirus" title="Virus Gratis 🦠">
+    🦠
   </button>
 
   <!-- Toast Notification -->
@@ -464,6 +485,23 @@
         <div class="celebration-winner-display" id="celebrationResultWinner">
           <img src="" id="celWinnerFlag" class="celebration-winner-flag-img">
           <span id="celWinnerName" class="celebration-winner-name-text"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Virus Gratis Modal -->
+  <div class="modal-overlay" id="virusModal">
+    <div class="modal-content virus-modal">
+      <button class="modal-close" id="btnVirusClose">✕</button>
+      <div class="modal-header" style="text-align: center;">
+        <h3 style="font-size: 1.4rem;">🦠 Virus Gratis</h3>
+        <p class="modal-subtitle">Datos curiosos del Mundial</p>
+      </div>
+      <div class="virus-facts-container" id="virusFactsContainer">
+        <div class="empty-state">
+          <span class="empty-icon">🧪</span>
+          <p>Aún no hay datos curiosos</p>
+          <p class="empty-sub">El administrador puede agregar datos desde el panel de admin</p>
         </div>
       </div>
     </div>
