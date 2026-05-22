@@ -184,7 +184,7 @@ function setupInteractiveFlags() {
       }
     }
     
-    if (window.confetti) {
+    if (window.confetti && window.celebrationsEnabled !== false) {
       const rect = currentFlagTarget.getBoundingClientRect();
       const x = (rect.left + rect.width / 2) / window.innerWidth;
       const y = (rect.top + rect.height / 2) / window.innerHeight;
@@ -509,7 +509,7 @@ function renderLeaderboard() {
 
 // Function to trigger two side confetti sprays celebrating the leaders
 function triggerLeaderboardCelebration() {
-  if (window.confetti) {
+  if (window.confetti && window.celebrationsEnabled !== false) {
     // Left spray
     confetti({
       particleCount: 60,
@@ -718,7 +718,7 @@ function renderKnockoutVersus(container) {
         <div class="vs-team ${teamAClass}">
           <div style="position: relative; display: inline-flex;">
             <img class="vs-team-flag ${effectA}" data-flag="${match.flag_a}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-            ${effectA === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+            ${effectA === 'celebrate-anim' && window.celebrationsEnabled !== false ? '<span class="mini-confetti-badge">🎉</span>' : ''}
           </div>
           <span class="vs-team-name">${match.team_a}</span>
         </div>
@@ -726,7 +726,7 @@ function renderKnockoutVersus(container) {
         <div class="vs-team ${teamBClass}">
           <div style="position: relative; display: inline-flex;">
             <img class="vs-team-flag ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-            ${effectB === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+            ${effectB === 'celebrate-anim' && window.celebrationsEnabled !== false ? '<span class="mini-confetti-badge">🎉</span>' : ''}
           </div>
           <span class="vs-team-name">${match.team_b}</span>
         </div>
@@ -837,7 +837,7 @@ function renderMatchCard(match) {
         <div class="match-team">
           <div style="position: relative; display: inline-flex;">
             <img class="team-flag ${match.result === 'A' ? 'winner-flag' : ''} ${effectA}" data-flag="${match.flag_a}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-            ${effectA === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+            ${effectA === 'celebrate-anim' && window.celebrationsEnabled !== false ? '<span class="mini-confetti-badge">🎉</span>' : ''}
           </div>
           <span class="team-name">${match.team_a}</span>
         </div>
@@ -846,7 +846,7 @@ function renderMatchCard(match) {
           <span class="team-name">${match.team_b}</span>
           <div style="position: relative; display: inline-flex;">
             <img class="team-flag ${match.result === 'B' ? 'winner-flag' : ''} ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-            ${effectB === 'celebrate-anim' ? '<span class="mini-confetti-badge">🎉</span>' : ''}
+            ${effectB === 'celebrate-anim' && window.celebrationsEnabled !== false ? '<span class="mini-confetti-badge">🎉</span>' : ''}
           </div>
         </div>
       </div>
@@ -941,7 +941,7 @@ async function saveGroupBets(btn, groupName) {
     btn.style.color = '#fff';
     btn.style.boxShadow = '0 0 15px rgba(52, 211, 153, 0.5)';
     
-    if (window.confetti) {
+    if (window.confetti && window.celebrationsEnabled !== false) {
       const rect = btn.getBoundingClientRect();
       const x = (rect.left + rect.width / 2) / window.innerWidth;
       const y = (rect.top + rect.height / 2) / window.innerHeight;
@@ -1091,7 +1091,7 @@ async function saveKnockoutBets(btn) {
     btn.style.background = 'var(--green)';
     btn.style.color = '#fff';
     
-    if (window.confetti) {
+    if (window.confetti && window.celebrationsEnabled !== false) {
       const rect = btn.getBoundingClientRect();
       const x = (rect.left + rect.width / 2) / window.innerWidth;
       const y = (rect.top + rect.height / 2) / window.innerHeight;
@@ -1341,7 +1341,7 @@ async function setResult(matchId, result) {
     }
     
     showToast(result ? '✅ Resultado guardado' : '↩️ Resultado eliminado', 'success');
-    if (result && window.confetti) {
+    if (result && window.confetti && window.celebrationsEnabled !== false) {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
     loadData();
@@ -1477,6 +1477,45 @@ function updatePredictionsUI() {
   
   if (card) {
     card.classList.toggle('predictions-disabled', !showPredictions);
+  }
+}
+
+function updateCelebrationsUI(celebrationsEnabled) {
+  window.celebrationsEnabled = celebrationsEnabled;
+  const toggle = $('#celebrationsToggle');
+  const label = $('#celebrationsStatusLabel');
+  const card = $('#celebrationsControlCard');
+  if (toggle) toggle.checked = celebrationsEnabled;
+  if (label) {
+    label.textContent = celebrationsEnabled ? 'Habilitados' : 'Ocultos';
+    label.classList.toggle('disabled', !celebrationsEnabled);
+    if(celebrationsEnabled) {
+      label.style.background = 'rgba(251,191,36,0.1)';
+      label.style.color = 'var(--gold)';
+    } else {
+      label.style.background = '';
+      label.style.color = '';
+    }
+  }
+}
+
+async function toggleCelebrations() {
+  const newState = $('#celebrationsToggle').checked;
+  try {
+    const res = await fetch('/api/settings/celebrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: newState })
+    });
+    if (!res.ok) throw new Error('Error al cambiar configuración');
+    
+    updateCelebrationsUI(newState);
+    showToast('✨ Festejos ' + (newState ? 'habilitados' : 'deshabilitados'), 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Error al cambiar configuración de festejos', 'error');
+    // Revert toggle
+    $('#celebrationsToggle').checked = !newState;
   }
 }
 
@@ -2091,7 +2130,7 @@ async function saveTheme() {
     if (res.ok) {
       document.documentElement.style.setProperty('--theme-color', color);
       showToast('🎨 Tema actualizado para todos', 'success');
-      if (window.confetti) confetti({ particleCount: 50, spread: 60 });
+      if (window.confetti && window.celebrationsEnabled !== false) confetti({ particleCount: 50, spread: 60 });
     }
   } catch (err) {
     showToast('Error al guardar el tema', 'error');
@@ -2775,7 +2814,7 @@ async function advanceTournamentPhase(e) {
       showToast(`✅ Eliminatorias iniciadas. Se clasificaron ${data.count} equipos.`, 'success');
       
       // 🎉 Fire confetti
-      if (window.confetti) {
+      if (window.confetti && window.celebrationsEnabled !== false) {
         const duration = 3000;
         const end = Date.now() + duration;
         (function frame() {
@@ -3065,7 +3104,7 @@ function triggerFullscreenCelebration(match) {
   overlay.classList.add('show');
   
   // Massive confetti storm!
-  if (window.confetti) {
+  if (window.confetti && window.celebrationsEnabled !== false) {
     const duration = 5000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100005 };

@@ -74,6 +74,7 @@ db.exec(`
   INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', '#3b82f6');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('show_predictions', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('celebrations_enabled', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('points_win', '3');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('points_draw', '1');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('tournament_phase', 'groups');
@@ -934,17 +935,19 @@ app.get('/api/settings', (req, res) => {
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
     const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
+    const celebrationsRow = db.prepare("SELECT value FROM settings WHERE key = 'celebrations_enabled'").get();
     
     res.json({
       theme: theme ? theme.value : '#3b82f6',
       betsEnabled: betsEnabled ? betsEnabled.value === 'true' : true,
       showPredictions: showPredictions ? showPredictions.value === 'true' : true,
+      celebrationsEnabled: celebrationsRow ? celebrationsRow.value === 'true' : true,
       pointsWin: pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3,
       pointsDraw: pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1,
       tournamentPhase: phaseRow ? phaseRow.value : 'groups'
     });
   } catch(e) {
-    res.json({ theme: '#3b82f6', betsEnabled: true, showPredictions: true, pointsWin: 3, pointsDraw: 1, tournamentPhase: 'groups' });
+    res.json({ theme: '#3b82f6', betsEnabled: true, showPredictions: true, celebrationsEnabled: true, pointsWin: 3, pointsDraw: 1, tournamentPhase: 'groups' });
   }
 });
 
