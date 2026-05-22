@@ -3145,7 +3145,9 @@ window.downloadCSVReport = async function() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    
+    // Prevent immediate revocation to allow browser to download
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     
     showToast('📥 Reporte Excel descargado con éxito', 'success');
   } catch (err) {
