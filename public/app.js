@@ -617,6 +617,8 @@ function renderKnockoutVersus(container) {
     'R16': '🏅 Octavos',
     'QF': '🔥 Cuartos',
     'SF': '💎 Semifinales',
+  'Third': '🥉 Tercer Lugar',
+    'Third': '🥉 Tercer Lugar',
     'Final': '🏆 Final'
   };
   
@@ -1038,7 +1040,7 @@ async function saveKnockoutBets(btn) {
   }
   
   const knockoutMatches = [];
-  for (const round of ['R32', 'R16', 'QF', 'SF', 'Final']) {
+  for (const round of ['R32', 'R16', 'QF', 'SF', 'Third', 'Final']) {
     if (bracketData[round]) knockoutMatches.push(...bracketData[round]);
   }
   
@@ -1178,6 +1180,8 @@ function renderAdminPanel() {
       'R16': '🏅 Octavos',
       'QF': '🔥 Cuartos',
       'SF': '💎 Semifinales',
+  'Third': '🥉 Tercer Lugar',
+    'Third': '🥉 Tercer Lugar',
       'Final': '🏆 Final'
     };
     
@@ -1279,7 +1283,7 @@ function renderAdminPanel() {
 
 function renderAdminMatchCard(match) {
   const r = match.result;
-  const isKnockout = ['R32', 'R16', 'QF', 'SF', 'Final'].includes(match.group_name);
+  const isKnockout = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(match.group_name);
   
   return `
     <div class="admin-match-card">
@@ -1667,7 +1671,7 @@ async function renderHistoryToElements(participantId, summaryEl, predsEl) {
   
   // Determine default active round
   if (tournamentPhase === 'knockout') {
-    const KNOCKOUT_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Final'];
+    const KNOCKOUT_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
     let detectedRound = null;
     for (const r of KNOCKOUT_ROUNDS) {
       const roundPreds = predictions.filter(p => p.group_name === r);
@@ -1703,7 +1707,7 @@ window.updateModalPredictionsUI = function(predsEl) {
     // Render round selector tabs inside the modal
     html += `
       <div class="modal-round-tabs" style="display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-        ${['R32', 'R16', 'QF', 'SF', 'Final'].map(round => {
+        ${['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].map(round => {
           const count = predictions.filter(p => p.group_name === round).length;
           if (count === 0) return '';
           const isActive = modalActiveRound === round;
@@ -1723,7 +1727,7 @@ window.updateModalPredictionsUI = function(predsEl) {
   let finishedPreds = [];
   
   if (tournamentPhase === 'groups') {
-    activePreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Final'].includes(p.group_name) && p.result === null);
+    activePreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name) && p.result === null);
     finishedPreds = predictions.filter(p => p.result !== null);
   } else {
     activePreds = predictions.filter(p => p.group_name === modalActiveRound && p.result === null);
@@ -1779,7 +1783,7 @@ function renderPredictionListHtml(predsList) {
   });
   
   for (const gName of groupNames) {
-    const label = ['R32', 'R16', 'QF', 'SF', 'Final'].includes(gName) ? `Ronda ${gName === 'R16' ? 'Octavos' : gName === 'QF' ? 'Cuartos' : gName === 'SF' ? 'Semis' : gName === 'Final' ? 'Final' : '32'}` : `Grupo ${gName}`;
+    const label = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(gName) ? `Ronda ${gName === 'R16' ? 'Octavos' : gName === 'QF' ? 'Cuartos' : gName === 'SF' ? 'Semis' : gName === 'Third' ? 'Tercer' : gName === 'Final' ? 'Final' : '32'}` : `Grupo ${gName}`;
     html += `<div class="history-group-label">${label}</div>`;
     
     for (const p of grouped[gName]) {
@@ -1878,7 +1882,7 @@ function renderTendencias() {
   });
   
   // Categorize matches into Knockout versus and Group stage matches
-  const knockoutGroups = ['R32', 'R16', 'QF', 'SF', 'Final'];
+  const knockoutGroups = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
   const knockoutMatches = [];
   const groupMatches = [];
   
@@ -1989,7 +1993,8 @@ function renderTendencias() {
     { id: 'R16', label: '🏅 Octavos' },
     { id: 'QF', label: '🔥 Cuartos' },
     { id: 'SF', label: '💎 Semis' },
-    { id: 'Final', label: '🏆 Final' }
+    { id: 'Third', label: '🥉 Tercer Lugar' },
+        { id: 'Final', label: '🏆 Final' }
   ];
   
   filters.forEach(f => {
@@ -2226,10 +2231,11 @@ const ROUND_LABELS = {
   'R16': 'Octavos de Final',
   'QF': 'Cuartos de Final',
   'SF': 'Semifinales',
+  'Third': 'Tercer Lugar',
   'Final': 'Gran Final'
 };
 
-const ROUND_ORDER = ['R32', 'R16', 'QF', 'SF', 'Final'];
+const ROUND_ORDER = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
 async function loadBracket() {
   try {

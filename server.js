@@ -217,7 +217,7 @@ if (matchCount.count === 0) {
 }
 
 // ─── Seed Knockout Stage matches if they don't exist ─────────
-const knockoutCount = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name IN ('R32','R16','QF','SF','Final')").get();
+const knockoutCount = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name IN ('R32','R16','QF','SF','Third','Final')").get();
 if (knockoutCount.count === 0) {
   const insertKnockout = db.prepare(
     'INSERT INTO matches (group_name, team_a, team_b, flag_a, flag_b, match_datetime, bracket_position) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -256,6 +256,9 @@ if (knockoutCount.count === 0) {
     insertKnockout.run('SF', 'A definir', 'A definir', 'un', 'un', '2026-07-11T15:00', 1);
     insertKnockout.run('SF', 'A definir', 'A definir', 'un', 'un', '2026-07-11T19:00', 2);
 
+    // ─── Third Place: 1 match (position 1) ───────────────────
+    insertKnockout.run('Third', 'A definir', 'A definir', 'un', 'un', '2026-07-12T16:00', 1);
+
     // ─── F: 1 match (position 1) ─────────────────────────────
     insertKnockout.run('Final', 'A definir', 'A definir', 'un', 'un', '2026-07-13T16:00', 1);
   });
@@ -270,7 +273,7 @@ if (knockoutCount.count === 0) {
 app.get('/api/matches', (req, res) => {
   const matches = db.prepare(`
     SELECT * FROM matches 
-    WHERE group_name NOT IN ('R32','R16','QF','SF','Final')
+    WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final')
     ORDER BY CASE WHEN group_name = 'Prueba' THEN 0 ELSE 1 END, group_name, id
   `).all();
   const grouped = {};
@@ -301,9 +304,9 @@ app.get('/api/participants', (req, res) => {
   const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
   const currentPhase = phaseRow ? phaseRow.value : 'groups';
 
-  let matchFilter = "m.group_name NOT IN ('R32','R16','QF','SF','Final', 'Prueba')";
+  let matchFilter = "m.group_name NOT IN ('R32','R16','QF','SF','Third','Final', 'Prueba')";
   if (currentPhase === 'knockout') {
-    matchFilter = "m.group_name IN ('R32','R16','QF','SF','Final')";
+    matchFilter = "m.group_name IN ('R32','R16','QF','SF','Third','Final')";
   }
 
   const participants = db.prepare(`
@@ -511,7 +514,7 @@ app.post('/api/predictions/batch', (req, res) => {
 });
 
 // ─── Bracket Progression Helper ──────────────────────────────
-const KNOCKOUT_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Final'];
+const KNOCKOUT_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
 function getNextRound(round) {
   const idx = KNOCKOUT_ROUNDS.indexOf(round);
@@ -571,7 +574,7 @@ app.get('/api/knockout', (req, res) => {
   try {
     const matches = db.prepare(`
       SELECT * FROM matches 
-      WHERE group_name IN ('R32','R16','QF','SF','Final')
+      WHERE group_name IN ('R32','R16','QF','SF','Third','Final')
       ORDER BY group_name, bracket_position
     `).all();
     
@@ -660,9 +663,9 @@ app.get('/api/teams', (req, res) => {
   try {
     // Get unique teams from group stage matches
     const teams = db.prepare(`
-      SELECT DISTINCT team_a as name, flag_a as flag FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Final','Prueba')
+      SELECT DISTINCT team_a as name, flag_a as flag FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba')
       UNION
-      SELECT DISTINCT team_b as name, flag_b as flag FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Final','Prueba')
+      SELECT DISTINCT team_b as name, flag_b as flag FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba')
       ORDER BY name
     `).all();
     res.json(teams);
@@ -826,7 +829,7 @@ app.post('/api/admin/start-knockout', (req, res) => {
 
     // 2. Auto-fill R32 if they are currently "A definir"
     // Get all group matches with a result
-    const groupMatches = db.prepare("SELECT * FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Final','Prueba') AND result IS NOT NULL").all();
+    const groupMatches = db.prepare("SELECT * FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba') AND result IS NOT NULL").all();
 
     const teamStats = {};
     groupMatches.forEach(m => {
@@ -904,14 +907,14 @@ app.post('/api/admin/reset-knockout', (req, res) => {
       // 2. Clear all predictions for knockout matches
       db.prepare(`
         DELETE FROM predictions 
-        WHERE match_id IN (SELECT id FROM matches WHERE group_name IN ('R32','R16','QF','SF','Final'))
+        WHERE match_id IN (SELECT id FROM matches WHERE group_name IN ('R32','R16','QF','SF','Third','Final'))
       `).run();
       
       // 3. Reset knockout matches back to TBD
       db.prepare(`
         UPDATE matches 
         SET team_a = 'A definir', team_b = 'A definir', flag_a = 'un', flag_b = 'un', result = NULL
-        WHERE group_name IN ('R32','R16','QF','SF','Final')
+        WHERE group_name IN ('R32','R16','QF','SF','Third','Final')
       `).run();
     });
     
@@ -1143,7 +1146,7 @@ app.get('/api/admin/export-excel', async (req, res) => {
     }
 
     // Separate matches
-    const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Final'];
+    const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
     const groupMatches = allMatches.filter(m => !knockoutRounds.includes(m.group_name) && m.group_name !== 'Prueba');
     const knockoutMatches = allMatches.filter(m => knockoutRounds.includes(m.group_name));
 
@@ -1405,7 +1408,7 @@ app.get('/api/admin/export-excel', async (req, res) => {
     const ws3 = workbook.addWorksheet('🏟️ Eliminatorias');
 
     const roundLabels = { R32: 'Dieciseisavos', R16: 'Octavos', QF: 'Cuartos', SF: 'Semis', Final: 'Final' };
-    const koRoundOrder = ['R32', 'R16', 'QF', 'SF', 'Final'];
+    const koRoundOrder = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
     const koCols = [{ header: 'Participante', key: 'name', width: 22 }];
     const koMatchList = [];
