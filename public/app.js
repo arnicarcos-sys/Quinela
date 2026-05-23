@@ -3210,7 +3210,7 @@ window.downloadGroupsPDF = async function() {
     
     // Fetch fresh data
     const [matchesRes, participantsRes, predRes] = await Promise.all([
-      fetch('/api/matches'),
+      fetch('/api/matches/all'),
       fetch('/api/participants'),
       fetch('/api/predictions/all')
     ]);
@@ -3219,12 +3219,12 @@ window.downloadGroupsPDF = async function() {
       throw new Error("No se pudo obtener la información completa");
     }
     
-    const matches = await matchesRes.json();
+    const allMatches = await matchesRes.json();
     const participants = await participantsRes.json();
     const allPredictions = await predRes.json();
     
-    // Only group matches
-    const groupMatches = matches.filter(m => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final', 'Prueba'].includes(m.group_name));
+    // Only group matches (exclude knockout and test matches)
+    const groupMatches = allMatches.filter(m => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final', 'Prueba'].includes(m.group_name));
     
     // Create prediction map
     const predMap = {};
