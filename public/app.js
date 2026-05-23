@@ -278,6 +278,12 @@ async function loadData() {
     showPredictions = settings.showPredictions !== undefined ? settings.showPredictions : true;
     updatePredictionsUI();
     
+    // Celebrations state
+    window.celebrationsEnabled = settings.celebrationsEnabled !== undefined ? settings.celebrationsEnabled : true;
+    if (typeof updateCelebrationsUI === 'function') {
+      updateCelebrationsUI(window.celebrationsEnabled);
+    }
+    
     // Points settings
     pointsWin = settings.pointsWin !== undefined ? settings.pointsWin : 3;
     pointsDraw = settings.pointsDraw !== undefined ? settings.pointsDraw : 1;
