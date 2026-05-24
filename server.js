@@ -412,7 +412,7 @@ app.get('/api/predictions/all', (req, res) => {
   }
   
   const predictions = db.prepare(`
-    SELECT pr.match_id, pr.prediction, p.name, p.nickname
+    SELECT pr.participant_id, pr.match_id, pr.prediction, p.name, p.nickname
     FROM predictions pr
     JOIN participants p ON pr.participant_id = p.id
   `).all();
