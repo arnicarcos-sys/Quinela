@@ -3201,9 +3201,11 @@ window.downloadCSVReport = async function() {
 };
 
 
-// ─── PDF Report Export (Fase de Grupos) ──────────────────────
-window.downloadGroupsPDF = async function() {
-  showToast('📄 Generando PDF de Fase de Grupos...', 'success');
+// ─── PDF Report Export (Fase Dinámica) ──────────────────────
+window.downloadPhasePDF = async function() {
+  const currentPhase = window.tournamentPhase || 'groups';
+  const phaseName = currentPhase === 'knockout' ? 'Eliminatorias' : 'Fase de Grupos';
+  showToast(`📄 Generando PDF de ${phaseName}...`, 'success');
   
   try {
     const { jsPDF } = window.jspdf;
@@ -3224,8 +3226,16 @@ window.downloadGroupsPDF = async function() {
     const predResponse = await predRes.json();
     const allPredictions = predResponse.data || predResponse || [];
     
-    // Only group matches (exclude knockout and test matches)
-    const groupMatches = allMatches.filter(m => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final', 'Prueba'].includes(m.group_name));
+    const currentPhase = window.tournamentPhase || 'groups';
+    const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+    
+    // Select matches based on current phase
+    let targetMatches = [];
+    if (currentPhase === 'knockout') {
+      targetMatches = allMatches.filter(m => knockoutRounds.includes(m.group_name));
+    } else {
+      targetMatches = allMatches.filter(m => !knockoutRounds.includes(m.group_name) && m.group_name !== 'Prueba');
+    }
     
     // Create prediction map
     const predMap = {};
@@ -3238,7 +3248,12 @@ window.downloadGroupsPDF = async function() {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'legal' });
     let isFirstPage = true;
     
-    const groupOrder = [...new Set(groupMatches.map(m => m.group_name))].sort();
+    let groupOrder = [];
+    if (currentPhase === 'knockout') {
+      groupOrder = knockoutRounds.filter(r => targetMatches.some(m => m.group_name === r));
+    } else {
+      groupOrder = [...new Set(targetMatches.map(m => m.group_name))].sort();
+    }
     
     // Helper to calculate group points
     function calcGroupPoints(participantId, gMatches) {
@@ -3254,7 +3269,7 @@ window.downloadGroupsPDF = async function() {
     }
     
     for (const groupName of groupOrder) {
-      const gMatches = groupMatches.filter(m => m.group_name === groupName);
+      const gMatches = targetMatches.filter(m => m.group_name === groupName);
       if (gMatches.length === 0) continue;
       
       if (!isFirstPage) {
@@ -3265,7 +3280,10 @@ window.downloadGroupsPDF = async function() {
       // Title
       doc.setFontSize(16);
       doc.setTextColor(30, 41, 59);
-      doc.text(`Quinela Mundial 2026 - Fase de Grupos : GRUPO ${groupName}`, 14, 15);
+      const phaseTitle = currentPhase === 'knockout' ? 'Eliminatorias' : 'Fase de Grupos';
+      const roundNameMap = { 'R32': '16avos de Final', 'R16': 'Octavos de Final', 'QF': 'Cuartos de Final', 'SF': 'Semifinales', 'Third': 'Tercer Lugar', 'Final': 'Final' };
+      const groupDisplay = currentPhase === 'knockout' ? (roundNameMap[groupName] || groupName) : `GRUPO ${groupName}`;
+      doc.text(`Quinela Mundial 2026 - ${phaseTitle} : ${groupDisplay}`, 14, 15);
       
       const head = [['Participante', 'Aciertos', 'Puntos']];
       for (const m of gMatches) {
@@ -3342,7 +3360,8 @@ window.downloadGroupsPDF = async function() {
       });
     }
     
-    doc.save(`Quinela_Fase_Grupos_${new Date().toISOString().split('T')[0]}.pdf`);
+    const fileNameSuffix = currentPhase === 'knockout' ? 'Eliminatorias' : 'Fase_Grupos';
+    doc.save(`Quinela_${fileNameSuffix}_${new Date().toISOString().split('T')[0]}.pdf`);
     showToast('📥 PDF generado con éxito', 'success');
     
   } catch (err) {
