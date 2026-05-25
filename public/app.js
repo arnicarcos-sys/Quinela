@@ -2282,6 +2282,80 @@ const ROUND_LABELS = {
 
 const ROUND_ORDER = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
+// ─── Ghost Tooltip Helpers (Fixed to Body) ──────────────
+// Global reference to the active tooltip for cleanup
+window._activeGhostTooltip = null;
+window._activeGhostSlot = null;
+
+function removeActiveGhostTooltip() {
+  if (window._activeGhostTooltip) {
+    window._activeGhostTooltip.remove();
+    window._activeGhostTooltip = null;
+  }
+  if (window._activeGhostSlot) {
+    window._activeGhostSlot.classList.remove('tooltip-active');
+    window._activeGhostSlot = null;
+  }
+}
+
+function positionGhostTooltip(tooltip, slotEl) {
+  const slotRect = slotEl.getBoundingClientRect();
+  const tipRect = tooltip.getBoundingClientRect();
+  const GAP = 10; // px gap between slot and tooltip
+  const EDGE_MARGIN = 10; // px margin from viewport edges
+
+  const vpW = window.innerWidth;
+  const vpH = window.innerHeight;
+
+  // ── Vertical: prefer above, fall back to below ──
+  let top;
+  let isBelow = false;
+
+  if (slotRect.top - tipRect.height - GAP >= EDGE_MARGIN) {
+    // Enough space above
+    top = slotRect.top - tipRect.height - GAP;
+  } else if (slotRect.bottom + tipRect.height + GAP <= vpH - EDGE_MARGIN) {
+    // Place below
+    top = slotRect.bottom + GAP;
+    isBelow = true;
+  } else {
+    // Not enough space either way — place above but clamp
+    top = Math.max(EDGE_MARGIN, slotRect.top - tipRect.height - GAP);
+  }
+
+  // ── Horizontal: center on slot, clamp to viewport ──
+  let left = slotRect.left + slotRect.width / 2 - tipRect.width / 2;
+  left = Math.max(EDGE_MARGIN, Math.min(left, vpW - tipRect.width - EDGE_MARGIN));
+
+  // Apply position
+  tooltip.style.top = top + 'px';
+  tooltip.style.left = left + 'px';
+
+  // Arrow direction class
+  if (isBelow) {
+    tooltip.classList.add('tooltip-below');
+  } else {
+    tooltip.classList.remove('tooltip-below');
+  }
+
+  // Adjust arrow horizontal position to point at slot center
+  const slotCenterX = slotRect.left + slotRect.width / 2;
+  const arrowOffset = slotCenterX - left;
+  // Clamp arrow to stay within tooltip bounds (with padding)
+  const clampedArrow = Math.max(20, Math.min(arrowOffset, tipRect.width - 20));
+  tooltip.style.setProperty('--arrow-left', clampedArrow + 'px');
+}
+
+// Close tooltip on any outside touch (mobile)
+document.addEventListener('touchstart', (e) => {
+  if (window._activeGhostTooltip && !window._activeGhostTooltip.contains(e.target)) {
+    const slot = window._activeGhostSlot;
+    if (!slot || !slot.contains(e.target)) {
+      removeActiveGhostTooltip();
+    }
+  }
+}, { passive: true });
+
 async function loadBracket() {
   try {
     const [bracketRes, teamsRes] = await Promise.all([
@@ -2641,10 +2715,10 @@ function createTeamSlot(match, slot) {
   
   // Hover Tooltip for voters (only if show_predictions is enabled and not TBD)
   if (window.allGlobalPredictions && window.allGlobalPredictions.enabled && !isTBD) {
-    el.addEventListener('mouseenter', () => {
+    
+    const showGhostTooltip = () => {
       // Remove any existing tooltip first
-      const existing = el.querySelector('.voters-ghost-tooltip');
-      if (existing) existing.remove();
+      removeActiveGhostTooltip();
 
       const voters = window.allGlobalPredictions.data.filter(p => p.match_id === match.id && p.prediction === slot);
       if (voters.length === 0) return;
@@ -2687,21 +2761,45 @@ function createTeamSlot(match, slot) {
       });
       tooltip.appendChild(list);
 
-      el.appendChild(tooltip);
+      // Append to body (escapes overflow:hidden of parent containers)
+      document.body.appendChild(tooltip);
+      el.classList.add('tooltip-active');
 
-      // Animate in next frame
+      // Store global reference for cleanup
+      window._activeGhostTooltip = tooltip;
+      window._activeGhostSlot = el;
+
+      // Position after DOM render so we can measure tooltip dimensions
       requestAnimationFrame(() => {
+        positionGhostTooltip(tooltip, el);
         tooltip.classList.add('show');
       });
-    });
+    };
 
-    el.addEventListener('mouseleave', () => {
-      const tooltip = el.querySelector('.voters-ghost-tooltip');
-      if (tooltip) {
-        tooltip.classList.remove('show');
-        setTimeout(() => tooltip.remove(), 200);
+    const hideGhostTooltip = () => {
+      el.classList.remove('tooltip-active');
+      if (window._activeGhostTooltip) {
+        const tip = window._activeGhostTooltip;
+        tip.classList.remove('show');
+        window._activeGhostTooltip = null;
+        window._activeGhostSlot = null;
+        setTimeout(() => tip.remove(), 200);
       }
-    });
+    };
+
+    // Desktop: mouse events
+    el.addEventListener('mouseenter', showGhostTooltip);
+    el.addEventListener('mouseleave', hideGhostTooltip);
+
+    // Mobile: touch events
+    el.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      if (window._activeGhostSlot === el) {
+        hideGhostTooltip();
+      } else {
+        showGhostTooltip();
+      }
+    }, { passive: true });
   }
   
   return el;
