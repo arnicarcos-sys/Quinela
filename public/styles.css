@@ -2300,6 +2300,53 @@ select {
   color: var(--text-muted);
 }
 
+/* ─── Sub-Tabs for Knockout Phase ──────────────────────────── */
+.sub-tabs-container {
+  display: flex;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 20px;
+  gap: 8px;
+}
+
+.sub-tab-btn {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sub-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+.sub-tab-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+  color: white;
+  box-shadow: 0 4px 15px rgba(129, 140, 248, 0.35);
+}
+
+/* Override knockout banner for history */
+.history-phase-banner {
+  background: linear-gradient(135deg, rgba(55, 65, 81, 0.4), rgba(31, 41, 55, 0.4)) !important;
+  border: 1px solid var(--border) !important;
+}
+
+.history-phase-banner h3 {
+  color: var(--text) !important;
+}
+
 /* ─── Round Tabs in Groups Section ──────────────────────────── */
 .knockout-groups-tabs {
   display: flex;

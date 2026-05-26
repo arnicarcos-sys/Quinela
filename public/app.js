@@ -552,21 +552,67 @@ function getFlagUrl(flagCode) {
 }
 
 let activeVersusRound = 'R32';
+let activeGroupViewTab = 'versus'; // 'versus' o 'history'
+
+function setGroupViewTab(tab) {
+  activeGroupViewTab = tab;
+  renderGroups();
+}
 
 function renderGroups() {
   const grid = $('#groupsGrid');
   grid.innerHTML = '';
   
-  // If knockout phase, show the Versus cards instead of group cards
+  // Si estamos en fase de eliminación, mostrar sub-pestañas
   if (tournamentPhase === 'knockout') {
-    grid.style.display = 'block';
-    renderKnockoutVersus(grid);
+    grid.style.display = 'block'; // Quitar el grid para permitir encabezados anchos
+    
+    // Contenedor de Sub-Pestañas
+    const subTabsHeader = document.createElement('div');
+    subTabsHeader.className = 'sub-tabs-container';
+    subTabsHeader.innerHTML = `
+      <button class="sub-tab-btn ${activeGroupViewTab === 'versus' ? 'active' : ''}" onclick="setGroupViewTab('versus')">
+        ⚔️ Duelos de Eliminatoria
+      </button>
+      <button class="sub-tab-btn ${activeGroupViewTab === 'history' ? 'active' : ''}" onclick="setGroupViewTab('history')">
+        📋 Historial de Grupos
+      </button>
+    `;
+    grid.appendChild(subTabsHeader);
+    
+    // Renderizar según sub-pestaña
+    if (activeGroupViewTab === 'versus') {
+      const versusContainer = document.createElement('div');
+      versusContainer.className = 'versus-container';
+      grid.appendChild(versusContainer);
+      renderKnockoutVersus(versusContainer);
+    } else {
+      // Vista Historial de Grupos
+      const historyHeader = document.createElement('div');
+      historyHeader.className = 'knockout-phase-banner history-phase-banner';
+      historyHeader.style.marginBottom = '25px';
+      historyHeader.innerHTML = `
+        <h3>📋 Historial de Fase de Grupos</h3>
+        <p>Las apuestas e historial de esta fase se encuentran bloqueados y cerrados para consulta.</p>
+      `;
+      grid.appendChild(historyHeader);
+      
+      const groupsContainer = document.createElement('div');
+      groupsContainer.className = 'groups-grid';
+      groupsContainer.style.display = 'grid'; // Restaurar el comportamiento de grid internamente
+      grid.appendChild(groupsContainer);
+      
+      renderGroupStageCards(groupsContainer, true);
+    }
     return;
   }
   
-  // Normal groups view
+  // Vista normal de grupos activos
   grid.style.display = '';
-  
+  renderGroupStageCards(grid, false);
+}
+
+function renderGroupStageCards(container, isHistoryView) {
   const groupNames = Object.keys(matchesData).sort((a, b) => {
     if (a === 'Prueba') return -1;
     if (b === 'Prueba') return 1;
@@ -590,7 +636,7 @@ function renderGroups() {
       <div class="group-matches">
         ${matches.map(m => renderMatchCard(m)).join('')}
       </div>
-      ${selectedParticipant ? `
+      ${selectedParticipant && !isHistoryView ? `
         <div class="group-footer" style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.1);">
           <button class="btn btn-primary btn-save-group" onclick="saveGroupBets(this, '${groupName}')">
             <span class="btn-text">💾 Guardar Apuestas</span>
@@ -600,7 +646,7 @@ function renderGroups() {
       ` : ''}
     `;
     
-    grid.appendChild(card);
+    container.appendChild(card);
   }
 }
 
