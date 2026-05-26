@@ -509,24 +509,25 @@ function renderLeaderboard() {
         
         return participantsData.map((p, i) => {
           if (lastPoints !== null && p.points < lastPoints) {
-            currentRank = i + 1;
+            currentRank++;
           }
           lastPoints = p.points;
           const rank = currentRank;
           
-          const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-default';
+          const isPodium = rank <= 3 && p.points > 0;
+          const rankClass = isPodium ? `rank-${rank}` : 'rank-default';
           
           // Highlight all participants sharing the max score
           const isLeader = maxPoints > 0 && p.points === maxPoints;
           const rowClass = isLeader ? 'leaderboard-leader-row' : '';
           
-          const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+          const medal = isPodium ? (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉') : '';
           const pending = Math.max(0, totalMatches - p.total_predictions);
           
           const isClickable = isAdmin || showPredictions || (selectedParticipant && selectedParticipant.id === p.id);
           const clickableClass = isClickable ? 'clickable-row' : 'non-clickable-row';
 
-          const avatarClass = rank <= 3 ? `rank-${rank}-avatar` : '';
+          const avatarClass = isPodium ? `rank-${rank}-avatar` : '';
           const avatarSrc = p.avatar || DEFAULT_AVATAR;
           const displayName = p.nickname
             ? `<span class="leaderboard-name-group">
@@ -543,9 +544,9 @@ function renderLeaderboard() {
               <td class="name-cell">
                 <div style="position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px;">
                   <img class="leaderboard-avatar ${avatarClass}" src="${avatarSrc}" alt="${escapeHtml(p.name)}" onerror="this.src='${DEFAULT_AVATAR}'">
-                  ${rank === 1 ? '<span class="mini-rank-badge gold-badge">✨</span>' : ''}
-                  ${rank === 2 ? '<span class="mini-rank-badge bronze-badge">✨</span>' : ''}
-                  ${rank === 3 ? '<span class="mini-rank-badge silver-badge">✨</span>' : ''}
+                  ${isPodium && rank === 1 ? '<span class="mini-rank-badge gold-badge">✨</span>' : ''}
+                  ${isPodium && rank === 2 ? '<span class="mini-rank-badge bronze-badge">✨</span>' : ''}
+                  ${isPodium && rank === 3 ? '<span class="mini-rank-badge silver-badge">✨</span>' : ''}
                 </div>
                 ${displayName}
               </td>
