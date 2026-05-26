@@ -458,54 +458,64 @@ function renderLeaderboard() {
       </tr>
     </thead>
     <tbody>
-      ${participantsData.map((p, i) => {
-        const rank = i + 1;
-        const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-default';
+      ${(() => {
+        let currentRank = 1;
+        let lastPoints = null;
         
-        // Highlight all participants sharing the max score
-        const isLeader = maxPoints > 0 && p.points === maxPoints;
-        const rowClass = isLeader ? 'leaderboard-leader-row' : '';
-        
-        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
-        const pending = Math.max(0, totalMatches - p.total_predictions);
-        
-        const isClickable = isAdmin || showPredictions || (selectedParticipant && selectedParticipant.id === p.id);
-        const clickableClass = isClickable ? 'clickable-row' : 'non-clickable-row';
+        return participantsData.map((p, i) => {
+          if (lastPoints !== null && p.points < lastPoints) {
+            currentRank++;
+          }
+          lastPoints = p.points;
+          const rank = currentRank;
+          
+          const rankClass = rank <= 3 ? `rank-${rank}` : 'rank-default';
+          
+          // Highlight all participants sharing the max score
+          const isLeader = maxPoints > 0 && p.points === maxPoints;
+          const rowClass = isLeader ? 'leaderboard-leader-row' : '';
+          
+          const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+          const pending = Math.max(0, totalMatches - p.total_predictions);
+          
+          const isClickable = isAdmin || showPredictions || (selectedParticipant && selectedParticipant.id === p.id);
+          const clickableClass = isClickable ? 'clickable-row' : 'non-clickable-row';
 
-        const avatarClass = rank <= 3 ? `rank-${rank}-avatar` : '';
-        const avatarSrc = p.avatar || DEFAULT_AVATAR;
-        const displayName = p.nickname
-          ? `<span class="leaderboard-name-group">
-               <span class="leaderboard-nickname">${escapeHtml(p.nickname)}</span>
-               <span class="leaderboard-realname">${escapeHtml(p.name)}</span>
-             </span>`
-          : `<span>${escapeHtml(p.name)}</span>`;
-        
-        return `
-          <tr class="leaderboard-row-animate ${rowClass} ${clickableClass}" style="animation-delay: ${i * 0.05}s" onclick="handleLeaderboardRowClick(${p.id}, '${escapeHtml(p.name)}')">
-            <td class="rank-cell">
-              <span class="rank-badge ${rankClass}">${medal || rank}</span>
-            </td>
-            <td class="name-cell">
-              <div style="position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px;">
-                <img class="leaderboard-avatar ${avatarClass}" src="${avatarSrc}" alt="${escapeHtml(p.name)}" onerror="this.src='${DEFAULT_AVATAR}'">
-                ${rank === 1 ? '<span class="mini-rank-badge gold-badge">✨</span>' : ''}
-                ${rank === 2 ? '<span class="mini-rank-badge bronze-badge">✨</span>' : ''}
-                ${rank === 3 ? '<span class="mini-rank-badge silver-badge">✨</span>' : ''}
-              </div>
-              ${displayName}
-            </td>
-            <td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>
-            <td class="pending-cell" style="text-align:center">
-              <span class="badge ${pending > 0 ? 'badge-warning' : 'badge-success'}">${pending}</span>
-            </td>
-            <td class="points-cell" style="text-align:center; font-weight: 800; color: var(--gold);">${p.points}</td>
-            <td>
-              ${isAdmin ? `<button class="delete-btn" onclick="event.stopPropagation(); deleteParticipant(${p.id}, '${escapeHtml(p.name)}')" title="Eliminar">🗑️</button>` : ''}
-            </td>
-          </tr>
-        `;
-      }).join('')}
+          const avatarClass = rank <= 3 ? `rank-${rank}-avatar` : '';
+          const avatarSrc = p.avatar || DEFAULT_AVATAR;
+          const displayName = p.nickname
+            ? `<span class="leaderboard-name-group">
+                 <span class="leaderboard-nickname">${escapeHtml(p.nickname)}</span>
+                 <span class="leaderboard-realname">${escapeHtml(p.name)}</span>
+               </span>`
+            : `<span>${escapeHtml(p.name)}</span>`;
+          
+          return `
+            <tr class="leaderboard-row-animate ${rowClass} ${clickableClass}" style="animation-delay: ${i * 0.05}s" onclick="handleLeaderboardRowClick(${p.id}, '${escapeHtml(p.name)}')">
+              <td class="rank-cell">
+                <span class="rank-badge ${rankClass}">${medal || rank}</span>
+              </td>
+              <td class="name-cell">
+                <div style="position: relative; display: inline-flex; align-items: center; vertical-align: middle; margin-right: 8px;">
+                  <img class="leaderboard-avatar ${avatarClass}" src="${avatarSrc}" alt="${escapeHtml(p.name)}" onerror="this.src='${DEFAULT_AVATAR}'">
+                  ${rank === 1 ? '<span class="mini-rank-badge gold-badge">✨</span>' : ''}
+                  ${rank === 2 ? '<span class="mini-rank-badge bronze-badge">✨</span>' : ''}
+                  ${rank === 3 ? '<span class="mini-rank-badge silver-badge">✨</span>' : ''}
+                </div>
+                ${displayName}
+              </td>
+              <td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>
+              <td class="pending-cell" style="text-align:center">
+                <span class="badge ${pending > 0 ? 'badge-warning' : 'badge-success'}">${pending}</span>
+              </td>
+              <td class="points-cell" style="text-align:center; font-weight: 800; color: var(--gold);">${p.points}</td>
+              <td>
+                ${isAdmin ? `<button class="delete-btn" onclick="event.stopPropagation(); deleteParticipant(${p.id}, '${escapeHtml(p.name)}')" title="Eliminar">🗑️</button>` : ''}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      })()}
     </tbody>
   `;
   
@@ -676,12 +686,31 @@ function renderKnockoutVersus(container) {
   
   for (const round of ROUND_ORDER) {
     const tab = document.createElement('button');
-    tab.className = `knockout-groups-tab ${round === activeVersusRound ? 'active' : ''}`;
+    let isDisabled = false;
+    
+    // Deshabilitar pestaña del Tercer Lugar si el partido aún no está definido
+    if (round === 'Third') {
+      const thirdMatches = bracketData['Third'] || [];
+      const thirdMatch = thirdMatches[0];
+      if (!thirdMatch || thirdMatch.team_a === 'A definir' || thirdMatch.team_b === 'A definir') {
+        isDisabled = true;
+      }
+    }
+    
+    tab.className = `knockout-groups-tab ${round === activeVersusRound ? 'active' : ''} ${isDisabled ? 'disabled-tab' : ''}`;
     tab.textContent = VERSUS_ROUND_LABELS[round] || round;
-    tab.addEventListener('click', () => {
-      activeVersusRound = round;
-      renderGroups();
-    });
+    
+    if (isDisabled) {
+      tab.disabled = true;
+      tab.style.opacity = '0.4';
+      tab.style.cursor = 'not-allowed';
+      tab.title = 'Se habilitará automáticamente al definirse los equipos';
+    } else {
+      tab.addEventListener('click', () => {
+        activeVersusRound = round;
+        renderGroups();
+      });
+    }
     tabsDiv.appendChild(tab);
   }
   container.appendChild(tabsDiv);
@@ -692,15 +721,10 @@ function renderKnockoutVersus(container) {
   if (roundMatches.length === 0) {
     container.innerHTML += `
       <div class="empty-state">
-        <span class="empty-icon">⏳</span>
-        <p>Cargando partidos de eliminatorias...</p>
+        <span class="empty-icon">🔒</span>
+        <p>No hay partidos definidos para esta ronda</p>
       </div>
     `;
-    // Try loading bracket data if not yet loaded
-    loadBracket().then(() => {
-      const newMatches = bracketData[activeVersusRound] || [];
-      if (newMatches.length > 0) renderGroups();
-    });
     return;
   }
   
@@ -3513,3 +3537,186 @@ window.downloadPhasePDF = async function() {
     showToast('Error al generar el PDF', 'error');
   }
 };
+
+// ─── App Tour (Onboarding) ──────────────────────────────────
+const AppTour = {
+  steps: [
+    {
+      target: '.tabs-nav',
+      title: '🧭 Navegación Principal',
+      text: 'Muévete por el Mundial. Aquí podrás alternar entre la Tabla General, los Grupos, Tendencias y la Fase Final.'
+    },
+    {
+      target: () => selectedParticipant ? '#participantHeaderCard' : '#participantLoginCard',
+      title: '🔑 Tu Acceso a la Quinela',
+      text: 'Para empezar a predecir, necesitas iniciar sesión con el usuario y contraseña que te proporcionó el Administrador.',
+      onBefore: () => { 
+        const tab = document.querySelector('.tab[data-tab="groups"]');
+        if (tab) tab.click(); 
+      }
+    },
+    {
+      target: '#sectionLeaderboard .section-header',
+      title: '🏆 Tabla General',
+      text: 'Sigue la acción en tiempo real. Aquí verás quién lidera la competencia, tus aciertos y puntos totales.',
+      onBefore: () => { 
+        const tab = document.querySelector('.tab[data-tab="leaderboard"]');
+        if (tab) tab.click(); 
+      }
+    },
+    {
+      target: '#btnVirus',
+      title: '🦠 Datos Curiosos',
+      text: 'Descubre increíbles datos mundialistas tocando el Virus o consulta el reglamento oficial en cualquier momento.'
+    },
+    {
+      target: '.header-stats',
+      title: '🎉 ¡Listo para la Gloria!',
+      text: '¡Estás preparado! Recuerda siempre hacer click en "💾 Guardar Apuestas" cada vez que pronostiques. ¡Mucha suerte!'
+    }
+  ],
+  currentStep: 0,
+  isActive: false,
+  resizeTimeout: null,
+
+  init() {
+    $('#btnStartTour').addEventListener('click', () => this.start());
+    $('#tourBtnNext').addEventListener('click', () => this.next());
+    $('#tourBtnPrev').addEventListener('click', () => this.prev());
+    
+    // Auto-start si es la primera vez (después de 1.5s)
+    setTimeout(() => {
+      if (!localStorage.getItem('quinela_tour_visto')) {
+        this.start();
+      }
+    }, 1500);
+    
+    window.addEventListener('resize', () => {
+      if (!this.isActive) return;
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => this.recalcPosition(), 100);
+    });
+    
+    window.addEventListener('scroll', () => {
+      if (this.isActive) this.recalcPosition();
+    }, { passive: true });
+  },
+
+  start() {
+    this.isActive = true;
+    this.currentStep = 0;
+    $('#tourBackdrop').classList.add('active');
+    this.renderStep();
+    localStorage.setItem('quinela_tour_visto', 'true');
+  },
+
+  end() {
+    this.isActive = false;
+    $('#tourBackdrop').classList.remove('active');
+    $('#tourDialog').classList.remove('visible');
+  },
+
+  next() {
+    if (this.currentStep < this.steps.length - 1) {
+      this.currentStep++;
+      this.renderStep();
+    } else {
+      this.end();
+    }
+  },
+
+  prev() {
+    if (this.currentStep > 0) {
+      this.currentStep--;
+      this.renderStep();
+    }
+  },
+
+  renderStep() {
+    const step = this.steps[this.currentStep];
+    
+    if (step.onBefore) step.onBefore();
+    
+    $('#tourTitle').innerHTML = step.title;
+    $('#tourText').innerHTML = step.text;
+    
+    const dotsHtml = this.steps.map((_, i) => `<div class="tour-dot ${i === this.currentStep ? 'active' : ''}"></div>`).join('');
+    $('#tourDots').innerHTML = dotsHtml;
+    
+    $('#tourBtnPrev').style.visibility = this.currentStep === 0 ? 'hidden' : 'visible';
+    $('#tourBtnNext').innerHTML = this.currentStep === this.steps.length - 1 ? 'Terminar' : 'Siguiente';
+    
+    // Ocultar modal temporalmente mientras hace scroll
+    $('#tourDialog').classList.remove('visible');
+    $('#tourHighlight').style.opacity = '0';
+    
+    setTimeout(() => this.updateHighlight(), 50);
+  },
+
+  updateHighlight() {
+    if (!this.isActive) return;
+    const step = this.steps[this.currentStep];
+    const targetSelector = typeof step.target === 'function' ? step.target() : step.target;
+    const targetEl = document.querySelector(targetSelector);
+    
+    if (!targetEl) {
+      // Fallback si no encuentra el elemento
+      setTimeout(() => this.recalcPosition(), 100);
+      return;
+    }
+    
+    targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    setTimeout(() => {
+      $('#tourHighlight').style.opacity = '1';
+      this.recalcPosition();
+    }, 400); // Dar tiempo al scroll de terminar
+  },
+
+  recalcPosition() {
+    const step = this.steps[this.currentStep];
+    const targetSelector = typeof step.target === 'function' ? step.target() : step.target;
+    const targetEl = document.querySelector(targetSelector);
+    
+    const highlight = $('#tourHighlight');
+    const dialog = $('#tourDialog');
+    
+    if (!targetEl) {
+      dialog.classList.add('visible');
+      highlight.style.opacity = '0';
+      return;
+    }
+    
+    const rect = targetEl.getBoundingClientRect();
+    
+    // Padding para que la luz envuelva al elemento
+    const p = 8;
+    highlight.style.top = (rect.top - p) + 'px';
+    highlight.style.left = (rect.left - p) + 'px';
+    highlight.style.width = (rect.width + p * 2) + 'px';
+    highlight.style.height = (rect.height + p * 2) + 'px';
+    
+    // Posicionar el cuadro de diálogo inteligentemente
+    dialog.classList.add('visible');
+    let dTop = rect.bottom + 15;
+    let dLeft = rect.left + (rect.width / 2) - 160; // Centrado respecto al elemento
+    
+    // Si no cabe abajo, ponlo arriba
+    if (dTop + 180 > window.innerHeight) {
+      dTop = rect.top - dialog.offsetHeight - 15;
+      if (dTop < 10) dTop = 10; // Margen superior mínimo
+    }
+    
+    // Bounds horizontales
+    if (dLeft < 10) dLeft = 10;
+    if (dLeft + 320 > window.innerWidth) dLeft = window.innerWidth - 330;
+    
+    dialog.style.top = dTop + 'px';
+    dialog.style.left = dLeft + 'px';
+  }
+};
+
+// Start the tour initializer after all DOM loads
+window.addEventListener('load', () => {
+  AppTour.init();
+});

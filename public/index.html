@@ -24,6 +24,9 @@
           <h1 style="display: flex; align-items: center; gap: 8px;">
             Quinela Mundial
             <span class="tab admin-discrete-icon" data-tab="admin" id="tabAdmin" title="Panel de Administración">🛡️</span>
+            <button id="btnStartTour" class="tutorial-btn" title="Ver Tutorial">
+              <span class="icon">ℹ️</span> Primeros pasos
+            </button>
           </h1>
           <span class="logo-year">FIFA 2026 🇲🇽🇺🇸🇨🇦 | ESCENOGRAFÍA</span>
         </div>
@@ -539,6 +542,25 @@
           <span class="empty-icon">🧪</span>
           <p>Aún no hay datos curiosos</p>
           <p class="empty-sub">El administrador puede agregar datos desde el panel de admin</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Tour Backdrop -->
+  <div class="tour-backdrop" id="tourBackdrop">
+    <div class="tour-highlight" id="tourHighlight"></div>
+    <div class="tour-dialog" id="tourDialog">
+      <div class="tour-dialog-header">
+        <h3 class="tour-dialog-title" id="tourTitle">Título</h3>
+        <button class="tour-dialog-close" onclick="AppTour.end()">✕</button>
+      </div>
+      <div class="tour-dialog-body" id="tourText">Texto del tour...</div>
+      <div class="tour-dialog-footer">
+        <div class="tour-dots" id="tourDots"></div>
+        <div class="tour-nav-btns">
+          <button class="btn btn-secondary" id="tourBtnPrev" style="padding: 6px 12px; font-size: 0.8rem;">Anterior</button>
+          <button class="btn btn-primary" id="tourBtnNext" style="padding: 6px 12px; font-size: 0.8rem;">Siguiente</button>
         </div>
       </div>
     </div>
