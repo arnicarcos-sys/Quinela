@@ -509,7 +509,7 @@ function renderLeaderboard() {
         
         return participantsData.map((p, i) => {
           if (lastPoints !== null && p.points < lastPoints) {
-            currentRank++;
+            currentRank = i + 1;
           }
           lastPoints = p.points;
           const rank = currentRank;
