@@ -67,6 +67,14 @@ function setupEventListeners() {
     if (e.key === 'Enter') addParticipant();
   });
 
+  // Reset participant password (Admin)
+  if ($('#btnResetPassword')) {
+    $('#btnResetPassword').addEventListener('click', adminResetPassword);
+    $('#resetPasswordInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') adminResetPassword();
+    });
+  }
+
   // Participant Login
   $('#btnParticipantLogin').addEventListener('click', participantLogin);
   $('#loginPassword').addEventListener('keypress', (e) => {
@@ -359,6 +367,43 @@ async function deleteParticipant(id, name) {
     loadData();
   } catch (err) {
     showToast('Error al eliminar', 'error');
+  }
+}
+
+async function adminResetPassword() {
+  const select = $('#resetPasswordParticipant');
+  const inputPwd = $('#resetPasswordInput');
+  const id = select.value;
+  const password = inputPwd.value.trim();
+
+  if (!id) {
+    showToast('Selecciona un participante', 'error');
+    return;
+  }
+  if (!password) {
+    showToast('Ingresa una nueva contraseña', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/participants/${id}/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Error al restablecer contraseña', 'error');
+      return;
+    }
+
+    inputPwd.value = '';
+    select.value = '';
+    const pName = select.options[select.selectedIndex].text;
+    showToast(`✅ Contraseña actualizada para ${pName}`, 'success');
+  } catch (err) {
+    showToast('Error al restablecer contraseña', 'error');
   }
 }
 
@@ -1676,20 +1721,32 @@ async function savePoints() {
 // ─── Participant History (Admin) ────────────────────────
 function populateHistorySelect() {
   const select = $('#historyParticipantSelect');
-  if (!select) return;
+  const resetSelect = $('#resetPasswordParticipant');
   
-  const currentValue = select.value;
-  select.innerHTML = '<option value="">— Selecciona un participante —</option>';
+  const currentValue = select ? select.value : '';
+  const currentResetValue = resetSelect ? resetSelect.value : '';
+  
+  if (select) select.innerHTML = '<option value="">— Selecciona un participante —</option>';
+  if (resetSelect) resetSelect.innerHTML = '<option value="">— Selecciona un participante —</option>';
   
   for (const p of participantsData) {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = `${p.name} (${p.points} pts)`;
-    select.appendChild(opt);
+    if (select) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${p.points} pts)`;
+      select.appendChild(opt);
+    }
+    if (resetSelect) {
+      const optReset = document.createElement('option');
+      optReset.value = p.id;
+      optReset.textContent = p.name;
+      resetSelect.appendChild(optReset);
+    }
   }
   
   // Restore previous selection
-  if (currentValue) select.value = currentValue;
+  if (select && currentValue) select.value = currentValue;
+  if (resetSelect && currentResetValue) resetSelect.value = currentResetValue;
 }
 
 async function loadParticipantHistory(participantId) {

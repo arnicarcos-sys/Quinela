@@ -216,6 +216,21 @@
           <p class="capacity-text" id="capacityText">0/50 participantes</p>
         </div>
 
+        <!-- Reset Password Form (Admin Only) -->
+        <div class="add-participant-card" style="margin-bottom: 30px;">
+          <h3>🔑 Restablecer Contraseña</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Selecciona a un participante y asígnale una nueva contraseña si la olvidó.</p>
+          <div class="input-row">
+            <select id="resetPasswordParticipant" style="flex: 1; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary);">
+              <option value="">— Selecciona un participante —</option>
+            </select>
+            <input type="text" id="resetPasswordInput" placeholder="Nueva contraseña..." maxlength="20">
+            <button class="btn btn-primary" id="btnResetPassword" style="background: linear-gradient(135deg, var(--accent), var(--accent-bright));">
+              Guardar
+            </button>
+          </div>
+        </div>
+
         <!-- Create Test Match -->
         <div class="add-participant-card" style="margin-bottom: 30px;">
           <h3>⚽ Agregar Partido de Prueba</h3>

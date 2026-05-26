@@ -404,6 +404,24 @@ app.delete('/api/participants/:id', (req, res) => {
   res.json({ success: true });
 });
 
+// Admin: Reset password
+app.put('/api/participants/:id/password', (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+  if (!password || password.trim() === '') {
+    return res.status(400).json({ error: 'La nueva contraseña es obligatoria' });
+  }
+  try {
+    const result = db.prepare('UPDATE participants SET password = ? WHERE id = ?').run(password.trim(), id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Participante no encontrado' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get all predictions globally (respects show_predictions setting)
 app.get('/api/predictions/all', (req, res) => {
   const showPredictions = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
