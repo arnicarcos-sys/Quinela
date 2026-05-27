@@ -738,14 +738,7 @@ function renderKnockoutVersus(container) {
     const tab = document.createElement('button');
     let isDisabled = false;
     
-    // Deshabilitar pestaña del Tercer Lugar si el partido aún no está definido
-    if (round === 'Third') {
-      const thirdMatches = bracketData['Third'] || [];
-      const thirdMatch = thirdMatches[0];
-      if (!thirdMatch || thirdMatch.team_a === 'A definir' || thirdMatch.team_b === 'A definir') {
-        isDisabled = true;
-      }
-    }
+    // Tab is enabled consistently with other rounds
     
     tab.className = `knockout-groups-tab ${round === activeVersusRound ? 'active' : ''} ${isDisabled ? 'disabled-tab' : ''}`;
     tab.textContent = VERSUS_ROUND_LABELS[round] || round;

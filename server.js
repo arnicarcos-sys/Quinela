@@ -268,6 +268,25 @@ if (knockoutCount.count === 0) {
   console.log('✅ Fase de eliminación directa inicializada (31 partidos: R32→R16→QF→SF→F)');
 }
 
+// ─── Self-healing migration for existing databases ───────────
+const finalMatchCount = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name = 'Final'").get().count;
+const thirdMatchCount = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name = 'Third'").get().count;
+
+if (finalMatchCount === 0) {
+  db.prepare(
+    "INSERT INTO matches (group_name, team_a, team_b, flag_a, flag_b, match_datetime, bracket_position) VALUES ('Final', 'A definir', 'A definir', 'un', 'un', '2026-07-13T16:00', 1)"
+  ).run();
+  console.log("🛠️ Migración: Se agregó el partido de la Final.");
+}
+
+if (thirdMatchCount === 0) {
+  db.prepare(
+    "INSERT INTO matches (group_name, team_a, team_b, flag_a, flag_b, match_datetime, bracket_position) VALUES ('Third', 'A definir', 'A definir', 'un', 'un', '2026-07-12T16:00', 1)"
+  ).run();
+  console.log("🛠️ Migración: Se agregó el partido del Tercer Lugar.");
+}
+
+
 // ─── API Routes ──────────────────────────────────────────────
 
 // Get all matches grouped (group stage only)
