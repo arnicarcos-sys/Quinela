@@ -864,14 +864,20 @@ app.get('/api/standings', (req, res) => {
 
 // Stats endpoint
 app.get('/api/stats', (req, res) => {
-  const totalMatches = db.prepare('SELECT COUNT(*) as count FROM matches').get().count;
-  const playedMatches = db.prepare('SELECT COUNT(*) as count FROM matches WHERE result IS NOT NULL').get().count;
+  const groupTotal = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba')").get().count;
+  const groupPlayed = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba') AND result IS NOT NULL").get().count;
+  const knockoutTotal = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name IN ('R32','R16','QF','SF','Third','Final')").get().count;
+  const knockoutPlayed = db.prepare("SELECT COUNT(*) as count FROM matches WHERE group_name IN ('R32','R16','QF','SF','Third','Final') AND result IS NOT NULL").get().count;
   const totalParticipants = db.prepare('SELECT COUNT(*) as count FROM participants').get().count;
   const totalPredictions = db.prepare('SELECT COUNT(*) as count FROM predictions').get().count;
   
   res.json({
-    totalMatches,
-    playedMatches,
+    totalMatches: groupTotal + knockoutTotal,
+    playedMatches: groupPlayed + knockoutPlayed,
+    groupTotal,
+    groupPlayed,
+    knockoutTotal,
+    knockoutPlayed,
     totalParticipants,
     totalPredictions
   });

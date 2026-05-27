@@ -319,7 +319,11 @@ async function loadData() {
 
 function updateStats(stats) {
   $('#statParticipants').textContent = stats.totalParticipants;
-  $('#statPlayed').textContent = `${stats.playedMatches}/72`;
+  if (tournamentPhase === 'knockout') {
+    $('#statPlayed').textContent = `${stats.knockoutPlayed}/${stats.knockoutTotal}`;
+  } else {
+    $('#statPlayed').textContent = `${stats.groupPlayed}/${stats.groupTotal}`;
+  }
   $('#capacityText').textContent = `${stats.totalParticipants}/50 participantes`;
 }
 
