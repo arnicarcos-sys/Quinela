@@ -558,8 +558,8 @@ function advanceWinner(matchId) {
     
     const slot = (match.bracket_position === 1) ? 'A' : 'B';
     
-    const finalMatch = db.prepare('SELECT * FROM matches WHERE group_name = "Final" AND bracket_position = 1').get();
-    const thirdMatch = db.prepare('SELECT * FROM matches WHERE group_name = "Third" AND bracket_position = 1').get();
+    const finalMatch = db.prepare("SELECT * FROM matches WHERE group_name = 'Final' AND bracket_position = 1").get();
+    const thirdMatch = db.prepare("SELECT * FROM matches WHERE group_name = 'Third' AND bracket_position = 1").get();
     
     if (finalMatch) {
       if (slot === 'A') {
@@ -602,20 +602,25 @@ function advanceWinner(matchId) {
 
 // Admin: Set match result
 app.post('/api/matches/:id/result', (req, res) => {
-  const { result } = req.body;
-  
-  if (!['A', 'B', 'D', null].includes(result)) {
-    return res.status(400).json({ error: 'Resultado inválido' });
-  }
+  try {
+    const { result } = req.body;
+    
+    if (!['A', 'B', 'D', null].includes(result)) {
+      return res.status(400).json({ error: 'Resultado inválido' });
+    }
 
-  db.prepare('UPDATE matches SET result = ? WHERE id = ?').run(result, req.params.id);
-  
-  // If this is a knockout match with a definitive result, advance winner
-  if (result && result !== 'D') {
-    advanceWinner(parseInt(req.params.id));
+    db.prepare('UPDATE matches SET result = ? WHERE id = ?').run(result, req.params.id);
+    
+    // If this is a knockout match with a definitive result, advance winner
+    if (result && result !== 'D') {
+      advanceWinner(parseInt(req.params.id));
+    }
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error setting match result:', err);
+    res.status(500).json({ error: err.message });
   }
-  
-  res.json({ success: true });
 });
 
 // ─── Knockout Bracket Endpoints ──────────────────────────────
