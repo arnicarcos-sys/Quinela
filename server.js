@@ -533,26 +533,58 @@ app.post('/api/predictions/batch', (req, res) => {
 });
 
 // ─── Bracket Progression Helper ──────────────────────────────
-const KNOCKOUT_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
-
 function getNextRound(round) {
-  const idx = KNOCKOUT_ROUNDS.indexOf(round);
-  if (idx === -1 || idx >= KNOCKOUT_ROUNDS.length - 1) return null;
-  return KNOCKOUT_ROUNDS[idx + 1];
+  const map = {
+    'R32': 'R16',
+    'R16': 'QF',
+    'QF': 'SF'
+  };
+  return map[round] || null;
 }
 
 function advanceWinner(matchId) {
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match || !match.result || !match.bracket_position) return;
   
+  if (match.result === 'D') return; // Draws in knockout shouldn't auto-advance
+  
+  // Special logic for Semifinals
+  if (match.group_name === 'SF') {
+    const winnerTeam = match.result === 'A' ? match.team_a : match.team_b;
+    const winnerFlag = match.result === 'A' ? match.flag_a : match.flag_b;
+    
+    const loserTeam = match.result === 'A' ? match.team_b : match.team_a;
+    const loserFlag = match.result === 'A' ? match.flag_b : match.flag_a;
+    
+    const slot = (match.bracket_position === 1) ? 'A' : 'B';
+    
+    const finalMatch = db.prepare('SELECT * FROM matches WHERE group_name = "Final" AND bracket_position = 1').get();
+    const thirdMatch = db.prepare('SELECT * FROM matches WHERE group_name = "Third" AND bracket_position = 1').get();
+    
+    if (finalMatch) {
+      if (slot === 'A') {
+        db.prepare('UPDATE matches SET team_a = ?, flag_a = ? WHERE id = ?').run(winnerTeam, winnerFlag, finalMatch.id);
+      } else {
+        db.prepare('UPDATE matches SET team_b = ?, flag_b = ? WHERE id = ?').run(winnerTeam, winnerFlag, finalMatch.id);
+      }
+    }
+    
+    if (thirdMatch) {
+      if (slot === 'A') {
+        db.prepare('UPDATE matches SET team_a = ?, flag_a = ? WHERE id = ?').run(loserTeam, loserFlag, thirdMatch.id);
+      } else {
+        db.prepare('UPDATE matches SET team_b = ?, flag_b = ? WHERE id = ?').run(loserTeam, loserFlag, thirdMatch.id);
+      }
+    }
+    return;
+  }
+  
+  // Normal progression for R32, R16, QF
   const nextRound = getNextRound(match.group_name);
-  if (!nextRound) return; // This is the Final, no next round
+  if (!nextRound) return;
   
-  // Determine winner info
-  const winnerTeam = match.result === 'A' ? match.team_a : match.result === 'B' ? match.team_b : null;
-  const winnerFlag = match.result === 'A' ? match.flag_a : match.result === 'B' ? match.flag_b : null;
-  
-  if (!winnerTeam || match.result === 'D') return; // Draws in knockout shouldn't auto-advance (admin handles extra time/penalties manually)
+  const winnerTeam = match.result === 'A' ? match.team_a : match.team_b;
+  const winnerFlag = match.result === 'A' ? match.flag_a : match.flag_b;
   
   const pos = match.bracket_position;
   const nextPos = Math.ceil(pos / 2);
