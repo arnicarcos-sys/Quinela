@@ -711,12 +711,16 @@ app.post('/api/knockout/swap', (req, res) => {
     const tgtTeam = targetSlot === 'A' ? targetMatch.team_a : targetMatch.team_b;
     const tgtFlag = targetSlot === 'A' ? targetMatch.flag_a : targetMatch.flag_b;
     
-    // Swap them in a transaction
+    // Swap or copy depending on whether target is Third Place match from another match
+    const isTargetThird = targetMatch.group_name === 'Third' && sourceMatchId !== targetMatchId;
+    
     const swapTransaction = db.transaction(() => {
-      if (sourceSlot === 'A') {
-        db.prepare('UPDATE matches SET team_a = ?, flag_a = ? WHERE id = ?').run(tgtTeam, tgtFlag, sourceMatchId);
-      } else {
-        db.prepare('UPDATE matches SET team_b = ?, flag_b = ? WHERE id = ?').run(tgtTeam, tgtFlag, sourceMatchId);
+      if (!isTargetThird) {
+        if (sourceSlot === 'A') {
+          db.prepare('UPDATE matches SET team_a = ?, flag_a = ? WHERE id = ?').run(tgtTeam, tgtFlag, sourceMatchId);
+        } else {
+          db.prepare('UPDATE matches SET team_b = ?, flag_b = ? WHERE id = ?').run(tgtTeam, tgtFlag, sourceMatchId);
+        }
       }
       
       if (targetSlot === 'A') {
