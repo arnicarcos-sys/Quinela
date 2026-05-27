@@ -98,6 +98,11 @@ function setupEventListeners() {
     $('#predictionsToggle').addEventListener('change', togglePredictionsVisibility);
   }
 
+  // Celebrations toggle
+  if ($('#celebrationsToggle')) {
+    $('#celebrationsToggle').addEventListener('change', toggleCelebrations);
+  }
+
   // Participant history select
   $('#historyParticipantSelect').addEventListener('change', (e) => {
     const id = e.target.value;
