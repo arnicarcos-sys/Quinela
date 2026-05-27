@@ -3309,6 +3309,8 @@ function showToast(message, type = 'success') {
 window.previousMatchesFlat = null;
 
 function triggerFullscreenCelebration(match) {
+  if (window.celebrationsEnabled === false) return;
+  
   const overlay = document.getElementById('matchWinnerCelebration');
   if (!overlay) return;
   
