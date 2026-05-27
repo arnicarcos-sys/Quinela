@@ -1467,6 +1467,7 @@ async function setResult(matchId, result) {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
     loadData();
+    loadBracket();
   } catch (err) {
     showToast('Error al guardar resultado', 'error');
   }
