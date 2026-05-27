@@ -1066,6 +1066,17 @@ app.post('/api/settings/show_predictions', (req, res) => {
   }
 });
 
+// Toggle celebration effects
+app.post('/api/settings/celebrations', (req, res) => {
+  try {
+    const enabled = req.body.enabled ? 'true' : 'false';
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('celebrations_enabled', ?)").run(enabled);
+    res.json({ success: true, celebrationsEnabled: enabled === 'true' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Update points rules
 app.post('/api/settings/points', (req, res) => {
   try {
