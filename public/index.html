@@ -213,7 +213,7 @@
               <span>+</span> Agregar
             </button>
           </div>
-          <p class="capacity-text" id="capacityText">0/50 participantes</p>
+          <p class="capacity-text" id="capacityText">0/70 participantes</p>
         </div>
 
         <!-- Reset Password Form (Admin Only) -->
@@ -276,8 +276,8 @@
         <div class="add-participant-card bets-control-card" style="margin-bottom: 30px;">
           <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
             <div>
-              <h3>🎰 Control de Apuestas</h3>
-              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Habilita o deshabilita las apuestas para todos los participantes.</p>
+              <h3>🎰 Control de Apuestas (Grupos)</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Habilita o deshabilita las apuestas para la fase de grupos.</p>
             </div>
             <div style="display: flex; align-items: center; gap: 12px;">
               <span class="bets-status-label" id="betsStatusLabel">Habilitadas</span>
@@ -286,6 +286,63 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+          </div>
+        </div>
+
+        <!-- Knockout Phases Bet Control -->
+        <div class="add-participant-card knockout-bets-control-card" style="margin-bottom: 30px;">
+          <h3>🔒 Bloqueo por Fase de Eliminatorias</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Permite habilitar o deshabilitar las apuestas individualmente para cada fase de eliminación directa.</p>
+          <div class="phase-toggles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Dieciseisavos (R32)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleR32" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Octavos de Final (R16)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleR16" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Cuartos de Final (QF)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleQF" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Semifinales (SF)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleSF" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Tercer Lugar (Third)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleThird" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Final (Final)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="betsToggleFinal" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
           </div>
         </div>
 

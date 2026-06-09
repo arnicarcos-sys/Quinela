@@ -73,6 +73,12 @@ db.exec(`
   );
   INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', '#3b82f6');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_R32', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_R16', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_QF', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_SF', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_Third', 'true');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('bets_enabled_Final', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('show_predictions', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('celebrations_enabled', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('points_win', '3');
@@ -357,8 +363,8 @@ app.post('/api/participants', (req, res) => {
   }
   
   const count = db.prepare('SELECT COUNT(*) as count FROM participants').get();
-  if (count.count >= 50) {
-    return res.status(400).json({ error: 'Se alcanzó el límite de 50 participantes' });
+  if (count.count >= 70) {
+    return res.status(400).json({ error: 'Se alcanzó el límite de 70 participantes' });
   }
 
   try {
@@ -478,16 +484,29 @@ app.post('/api/predictions', (req, res) => {
     return res.status(400).json({ error: 'Predicción inválida' });
   }
 
-  // Check if bets are enabled globally
-  const betsEnabled = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled'").get();
-  if (betsEnabled && betsEnabled.value === 'false') {
-    return res.status(403).json({ error: '🔒 Las apuestas están cerradas por el administrador' });
+  // Check if match already has a result
+  const match = db.prepare('SELECT group_name, result FROM matches WHERE id = ?').get(match_id);
+  if (!match) {
+    return res.status(404).json({ error: 'Partido no encontrado' });
+  }
+  if (match.result) {
+    return res.status(400).json({ error: 'Este partido ya tiene resultado, no se puede cambiar la predicción' });
   }
 
-  // Check if match already has a result
-  const match = db.prepare('SELECT result FROM matches WHERE id = ?').get(match_id);
-  if (match && match.result) {
-    return res.status(400).json({ error: 'Este partido ya tiene resultado, no se puede cambiar la predicción' });
+  // Check lock by phase
+  const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+  if (knockoutRounds.includes(match.group_name)) {
+    const phaseKey = `bets_enabled_${match.group_name}`;
+    const phaseEnabled = db.prepare("SELECT value FROM settings WHERE key = ?").get(phaseKey);
+    if (phaseEnabled && phaseEnabled.value === 'false') {
+      return res.status(403).json({ error: `🔒 Las predicciones para la fase ${match.group_name} están cerradas` });
+    }
+  } else {
+    // Group stage / test matches
+    const betsEnabled = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled'").get();
+    if (betsEnabled && betsEnabled.value === 'false') {
+      return res.status(403).json({ error: '🔒 Las apuestas de la fase de grupos están cerradas por el administrador' });
+    }
   }
 
   try {
@@ -511,12 +530,6 @@ app.post('/api/predictions/batch', (req, res) => {
     return res.status(400).json({ error: 'Datos de lote inválidos' });
   }
 
-  // Check if bets are enabled globally
-  const betsEnabled = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled'").get();
-  if (betsEnabled && betsEnabled.value === 'false') {
-    return res.status(403).json({ error: '🔒 Las apuestas están cerradas por el administrador' });
-  }
-
   const batchTransaction = db.transaction(() => {
     const insertPrediction = db.prepare(`
       INSERT INTO predictions (participant_id, match_id, prediction) 
@@ -525,7 +538,10 @@ app.post('/api/predictions/batch', (req, res) => {
       DO UPDATE SET prediction = excluded.prediction
     `);
 
-    const getMatchResult = db.prepare('SELECT result FROM matches WHERE id = ?');
+    const getMatch = db.prepare('SELECT group_name, result FROM matches WHERE id = ?');
+    const getSetting = db.prepare("SELECT value FROM settings WHERE key = ?");
+
+    const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
     for (const p of predictions) {
       const { match_id, prediction } = p;
@@ -534,9 +550,25 @@ app.post('/api/predictions/batch', (req, res) => {
       }
 
       // Check if match already has a result
-      const match = getMatchResult.get(match_id);
-      if (match && match.result) {
+      const match = getMatch.get(match_id);
+      if (!match) {
+        throw new Error('Partido no encontrado');
+      }
+      if (match.result) {
         throw new Error('Un partido seleccionado ya tiene resultado oficial');
+      }
+
+      if (knockoutRounds.includes(match.group_name)) {
+        const phaseKey = `bets_enabled_${match.group_name}`;
+        const phaseEnabled = getSetting.get(phaseKey);
+        if (phaseEnabled && phaseEnabled.value === 'false') {
+          throw new Error(`🔒 Las predicciones para la fase ${match.group_name} están cerradas`);
+        }
+      } else {
+        const betsEnabled = getSetting.get('bets_enabled');
+        if (betsEnabled && betsEnabled.value === 'false') {
+          throw new Error('🔒 Las apuestas de la fase de grupos están cerradas por el administrador');
+        }
       }
 
       insertPrediction.run(participant_id, match_id, prediction);
@@ -1015,6 +1047,12 @@ app.get('/api/settings', (req, res) => {
   try {
     const theme = db.prepare("SELECT value FROM settings WHERE key = 'theme'").get();
     const betsEnabled = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled'").get();
+    const betsEnabledR32 = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_R32'").get();
+    const betsEnabledR16 = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_R16'").get();
+    const betsEnabledQF = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_QF'").get();
+    const betsEnabledSF = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_SF'").get();
+    const betsEnabledThird = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_Third'").get();
+    const betsEnabledFinal = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_Final'").get();
     const showPredictions = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
@@ -1024,6 +1062,12 @@ app.get('/api/settings', (req, res) => {
     res.json({
       theme: theme ? theme.value : '#3b82f6',
       betsEnabled: betsEnabled ? betsEnabled.value === 'true' : true,
+      betsEnabledR32: betsEnabledR32 ? betsEnabledR32.value === 'true' : true,
+      betsEnabledR16: betsEnabledR16 ? betsEnabledR16.value === 'true' : true,
+      betsEnabledQF: betsEnabledQF ? betsEnabledQF.value === 'true' : true,
+      betsEnabledSF: betsEnabledSF ? betsEnabledSF.value === 'true' : true,
+      betsEnabledThird: betsEnabledThird ? betsEnabledThird.value === 'true' : true,
+      betsEnabledFinal: betsEnabledFinal ? betsEnabledFinal.value === 'true' : true,
       showPredictions: showPredictions ? showPredictions.value === 'true' : true,
       celebrationsEnabled: celebrationsRow ? celebrationsRow.value === 'true' : true,
       pointsWin: pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3,
@@ -1031,7 +1075,21 @@ app.get('/api/settings', (req, res) => {
       tournamentPhase: phaseRow ? phaseRow.value : 'groups'
     });
   } catch(e) {
-    res.json({ theme: '#3b82f6', betsEnabled: true, showPredictions: true, celebrationsEnabled: true, pointsWin: 3, pointsDraw: 1, tournamentPhase: 'groups' });
+    res.json({
+      theme: '#3b82f6',
+      betsEnabled: true,
+      betsEnabledR32: true,
+      betsEnabledR16: true,
+      betsEnabledQF: true,
+      betsEnabledSF: true,
+      betsEnabledThird: true,
+      betsEnabledFinal: true,
+      showPredictions: true,
+      celebrationsEnabled: true,
+      pointsWin: 3,
+      pointsDraw: 1,
+      tournamentPhase: 'groups'
+    });
   }
 });
 
@@ -1050,6 +1108,22 @@ app.post('/api/settings/bets_enabled', (req, res) => {
     const enabled = req.body.enabled ? 'true' : 'false';
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('bets_enabled', ?)").run(enabled);
     res.json({ success: true, betsEnabled: enabled === 'true' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle bets by phase
+app.post('/api/settings/bets_enabled_phase', (req, res) => {
+  try {
+    const { phase, enabled } = req.body;
+    const validPhases = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+    if (!validPhases.includes(phase)) {
+      return res.status(400).json({ error: 'Fase inválida' });
+    }
+    const val = enabled ? 'true' : 'false';
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`bets_enabled_${phase}`, val);
+    res.json({ success: true, phase, enabled: enabled === true });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }

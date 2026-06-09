@@ -9,6 +9,12 @@ let currentPredictions = {};
 let selectedParticipant = null;
 let isAdmin = false;
 let betsEnabled = true;
+let betsEnabledR32 = true;
+let betsEnabledR16 = true;
+let betsEnabledQF = true;
+let betsEnabledSF = true;
+let betsEnabledThird = true;
+let betsEnabledFinal = true;
 let showPredictions = true;
 let pointsWin = 3;
 let pointsDraw = 1;
@@ -92,6 +98,15 @@ function setupEventListeners() {
 
   // Bets toggle
   $('#betsToggle').addEventListener('change', toggleBets);
+
+  // Knockout phase toggles
+  const phases = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+  phases.forEach(phase => {
+    const pToggle = $(`#betsToggle${phase}`);
+    if (pToggle) {
+      pToggle.addEventListener('change', () => toggleBetsPhase(phase));
+    }
+  });
 
   // Predictions toggle
   if ($('#predictionsToggle')) {
@@ -285,6 +300,12 @@ async function loadData() {
 
     // Bets enabled state
     betsEnabled = settings.betsEnabled;
+    betsEnabledR32 = settings.betsEnabledR32 !== undefined ? settings.betsEnabledR32 : true;
+    betsEnabledR16 = settings.betsEnabledR16 !== undefined ? settings.betsEnabledR16 : true;
+    betsEnabledQF = settings.betsEnabledQF !== undefined ? settings.betsEnabledQF : true;
+    betsEnabledSF = settings.betsEnabledSF !== undefined ? settings.betsEnabledSF : true;
+    betsEnabledThird = settings.betsEnabledThird !== undefined ? settings.betsEnabledThird : true;
+    betsEnabledFinal = settings.betsEnabledFinal !== undefined ? settings.betsEnabledFinal : true;
     updateBetsUI();
 
     // Predictions visibility state
@@ -329,7 +350,7 @@ function updateStats(stats) {
   } else {
     $('#statPlayed').textContent = `${stats.groupPlayed}/${stats.groupTotal}`;
   }
-  $('#capacityText').textContent = `${stats.totalParticipants}/50 participantes`;
+  $('#capacityText').textContent = `${stats.totalParticipants}/70 participantes`;
 }
 
 // ─── Participants ───────────────────────────────────────
@@ -802,7 +823,8 @@ function renderKnockoutVersus(container) {
     
     // Prediction buttons
     let predictionHtml = '';
-    if (selectedParticipant && !hasResult && !isTBD && betsEnabled) {
+    const phaseLocked = isKnockoutPhaseLocked(activeVersusRound);
+    if (selectedParticipant && !hasResult && !isTBD && !phaseLocked) {
       predictionHtml = `
         <div class="vs-prediction-row">
           <button class="vs-pred-btn ${prediction === 'A' ? 'selected' : ''}" 
@@ -815,6 +837,8 @@ function renderKnockoutVersus(container) {
           </button>
         </div>
       `;
+    } else if (selectedParticipant && !hasResult && !isTBD && phaseLocked) {
+      predictionHtml = `<div class="vs-result-badge vs-result-pending">🔒 Pronósticos cerrados para esta fase</div>`;
     } else if (selectedParticipant && !hasResult && isTBD) {
       predictionHtml = `<div class="vs-result-badge vs-result-pending">⏳ Equipos por definir</div>`;
     } else if (!selectedParticipant && !isTBD) {
@@ -1562,6 +1586,24 @@ function updateBetsUI() {
   if (card) {
     card.classList.toggle('bets-disabled', !betsEnabled);
   }
+
+  // Knockout phase toggles
+  const phases = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+  const states = {
+    'R32': betsEnabledR32,
+    'R16': betsEnabledR16,
+    'QF': betsEnabledQF,
+    'SF': betsEnabledSF,
+    'Third': betsEnabledThird,
+    'Final': betsEnabledFinal
+  };
+
+  phases.forEach(phase => {
+    const pToggle = $(`#betsToggle${phase}`);
+    if (pToggle) {
+      pToggle.checked = states[phase];
+    }
+  });
 }
 
 async function toggleBets() {
@@ -1578,13 +1620,55 @@ async function toggleBets() {
       betsEnabled = newState;
       updateBetsUI();
       renderGroups();
-      showToast(newState ? '✅ Apuestas habilitadas' : '🔒 Apuestas deshabilitadas', 'success');
+      showToast(newState ? '✅ Apuestas de grupos habilitadas' : '🔒 Apuestas de grupos deshabilitadas', 'success');
     }
   } catch (err) {
     showToast('Error al cambiar estado de apuestas', 'error');
     // Revert toggle
     $('#betsToggle').checked = !newState;
   }
+}
+
+async function toggleBetsPhase(phase) {
+  const toggle = $(`#betsToggle${phase}`);
+  if (!toggle) return;
+  const newState = toggle.checked;
+  
+  try {
+    const res = await fetch('/api/settings/bets_enabled_phase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase, enabled: newState })
+    });
+    
+    if (res.ok) {
+      if (phase === 'R32') betsEnabledR32 = newState;
+      else if (phase === 'R16') betsEnabledR16 = newState;
+      else if (phase === 'QF') betsEnabledQF = newState;
+      else if (phase === 'SF') betsEnabledSF = newState;
+      else if (phase === 'Third') betsEnabledThird = newState;
+      else if (phase === 'Final') betsEnabledFinal = newState;
+
+      updateBetsUI();
+      renderGroups();
+      renderBracket();
+      showToast(`🔒 Configuración de fase ${phase} actualizada`, 'success');
+    }
+  } catch (err) {
+    showToast('Error al cambiar estado de apuestas por fase', 'error');
+    // Revert toggle
+    toggle.checked = !newState;
+  }
+}
+
+function isKnockoutPhaseLocked(groupName) {
+  if (groupName === 'R32') return !betsEnabledR32;
+  if (groupName === 'R16') return !betsEnabledR16;
+  if (groupName === 'QF') return !betsEnabledQF;
+  if (groupName === 'SF') return !betsEnabledSF;
+  if (groupName === 'Third') return !betsEnabledThird;
+  if (groupName === 'Final') return !betsEnabledFinal;
+  return !betsEnabled;
 }
 
 // ─── Predictions Visibility Control ───────────────────────
@@ -1873,19 +1957,24 @@ window.updateModalPredictionsUI = function(predsEl) {
   
   if (tournamentPhase === 'knockout') {
     const VERSUS_ROUND_LABELS = {
+      'groups': '📋 Grupos',
       'R32': 'Ronda 32',
       'R16': '🏅 Octavos',
       'QF': '🔥 Cuartos',
       'SF': '💎 Semis',
+      'Third': '🥉 Tercer',
       'Final': '🏆 Final'
     };
     
     // Render round selector tabs inside the modal
     html += `
       <div class="modal-round-tabs" style="display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
-        ${['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].map(round => {
-          const count = predictions.filter(p => p.group_name === round).length;
-          if (count === 0) return '';
+        ${['groups', 'R32', 'R16', 'QF', 'SF', 'Third', 'Final'].map(round => {
+          const count = round === 'groups' 
+            ? predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name)).length
+            : predictions.filter(p => p.group_name === round).length;
+            
+          if (count === 0 && round !== 'groups') return '';
           const isActive = modalActiveRound === round;
           return `
             <button class="tab-btn ${isActive ? 'active' : ''}" 
@@ -1902,15 +1991,15 @@ window.updateModalPredictionsUI = function(predsEl) {
   let activePreds = [];
   let finishedPreds = [];
   
-  if (tournamentPhase === 'groups') {
+  if (tournamentPhase === 'groups' || modalActiveRound === 'groups') {
     activePreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name) && p.result === null);
-    finishedPreds = predictions.filter(p => p.result !== null);
+    finishedPreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name) && p.result !== null);
   } else {
     activePreds = predictions.filter(p => p.group_name === modalActiveRound && p.result === null);
-    finishedPreds = predictions.filter(p => p.result !== null);
+    finishedPreds = predictions.filter(p => p.group_name === modalActiveRound && p.result !== null);
   }
   
-  const activeTitle = tournamentPhase === 'groups' ? '🔮 Apuestas Grupales Pendientes' : `🔮 Duelos Pendientes - ${modalActiveRound === 'R16' ? 'Octavos de Final' : modalActiveRound === 'QF' ? 'Cuartos de Final' : modalActiveRound === 'SF' ? 'Semifinales' : modalActiveRound === 'Final' ? 'Gran Final' : 'Ronda de 32'}`;
+  const activeTitle = (tournamentPhase === 'groups' || modalActiveRound === 'groups') ? '🔮 Apuestas Grupales Pendientes' : `🔮 Duelos Pendientes - ${modalActiveRound === 'R16' ? 'Octavos de Final' : modalActiveRound === 'QF' ? 'Cuartos de Final' : modalActiveRound === 'SF' ? 'Semifinales' : modalActiveRound === 'Third' ? 'Tercer Lugar' : modalActiveRound === 'Final' ? 'Gran Final' : 'Ronda de 32'}`;
   
   html += `
     <div style="margin-bottom: 12px; color: var(--gold); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -1929,12 +2018,14 @@ window.updateModalPredictionsUI = function(predsEl) {
   }
   
   if (finishedPreds.length > 0) {
+    const showByDefault = activePreds.length === 0;
+    
     html += `
       <div style="border-top: 1px solid var(--border); padding-top: 15px; margin-top: 20px;">
-        <button class="btn btn-secondary" onclick="toggleFinishedHistory(this)" style="width:100%; justify-content: center; font-size: 0.8rem; padding: 10px 15px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); font-weight: 600; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
-          👁️ Ver Historial de Apuestas Finalizadas (${finishedPreds.length})
+        <button class="btn btn-secondary" onclick="toggleFinishedHistory(this)" style="width:100%; justify-content: center; font-size: 0.8rem; padding: 10px 15px; background: ${showByDefault ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)'}; border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); font-weight: 600; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">
+          ${showByDefault ? '🙈 Ocultar Historial de Apuestas Finalizadas' : '👁️ Ver Historial de Apuestas Finalizadas'} (${finishedPreds.length})
         </button>
-        <div id="finishedHistoryContainer" style="display: none; margin-top: 15px; animation: fadeIn 0.3s ease;">
+        <div id="finishedHistoryContainer" style="display: ${showByDefault ? 'block' : 'none'}; margin-top: 15px; animation: fadeIn 0.3s ease;">
           ${renderPredictionListHtml(finishedPreds)}
         </div>
       </div>
@@ -2828,7 +2919,7 @@ function createTeamSlot(match, slot) {
   }
   
   // Participant prediction (click to predict winner)
-  if (selectedParticipant && betsEnabled && !match.result && !isTBD) {
+  if (selectedParticipant && !isKnockoutPhaseLocked(match.group_name) && !match.result && !isTBD) {
     const otherTeam = slot === 'A' ? match.team_b : match.team_a;
     if (otherTeam !== 'A definir') {
       el.classList.add('predictable');
