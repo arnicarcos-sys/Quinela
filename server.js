@@ -496,6 +496,11 @@ app.post('/api/predictions', (req, res) => {
   // Check lock by phase
   const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
   if (knockoutRounds.includes(match.group_name)) {
+    const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
+    const currentPhase = phaseRow ? phaseRow.value : 'groups';
+    if (currentPhase === 'groups') {
+      return res.status(403).json({ error: '🔒 Las eliminatorias aún no han comenzado' });
+    }
     const phaseKey = `bets_enabled_${match.group_name}`;
     const phaseEnabled = db.prepare("SELECT value FROM settings WHERE key = ?").get(phaseKey);
     if (phaseEnabled && phaseEnabled.value === 'false') {
@@ -559,6 +564,11 @@ app.post('/api/predictions/batch', (req, res) => {
       }
 
       if (knockoutRounds.includes(match.group_name)) {
+        const phaseRow = getSetting.get('tournament_phase');
+        const currentPhase = phaseRow ? phaseRow.value : 'groups';
+        if (currentPhase === 'groups') {
+          throw new Error('🔒 Las eliminatorias aún no han comenzado');
+        }
         const phaseKey = `bets_enabled_${match.group_name}`;
         const phaseEnabled = getSetting.get(phaseKey);
         if (phaseEnabled && phaseEnabled.value === 'false') {

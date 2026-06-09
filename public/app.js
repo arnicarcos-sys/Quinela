@@ -1311,84 +1311,81 @@ function renderAdminPanel() {
   // Populate history select dropdown
   populateHistorySelect();
   
-  // If knockout phase, we render a round selector for the versus rounds
-  if (tournamentPhase === 'knockout') {
-    const headerEl = document.createElement('div');
-    headerEl.className = 'admin-knockout-header';
-    headerEl.style.marginBottom = '20px';
-    headerEl.style.width = '100%';
-    headerEl.style.gridColumn = '1 / -1';
-    headerEl.style.background = 'var(--bg-card)';
-    headerEl.style.padding = '20px';
-    headerEl.style.borderRadius = 'var(--radius-lg)';
-    headerEl.style.border = '1px solid var(--border)';
-    
-    const VERSUS_ROUND_LABELS = {
-      'R32': '⚔️ Ronda de 32',
-      'R16': '🏅 Octavos',
-      'QF': '🔥 Cuartos',
-      'SF': '💎 Semifinales',
-  'Third': '🥉 Tercer Lugar',
+  // We render a round selector for the versus rounds
+  const headerEl = document.createElement('div');
+  headerEl.className = 'admin-knockout-header';
+  headerEl.style.marginBottom = '20px';
+  headerEl.style.width = '100%';
+  headerEl.style.gridColumn = '1 / -1';
+  headerEl.style.background = 'var(--bg-card)';
+  headerEl.style.padding = '20px';
+  headerEl.style.borderRadius = 'var(--radius-lg)';
+  headerEl.style.border = '1px solid var(--border)';
+  
+  const VERSUS_ROUND_LABELS = {
+    'R32': '⚔️ Ronda de 32',
+    'R16': '🏅 Octavos',
+    'QF': '🔥 Cuartos',
+    'SF': '💎 Semifinales',
     'Third': '🥉 Tercer Lugar',
-      'Final': '🏆 Final'
-    };
-    
-    let tabsHtml = `<div class="knockout-groups-tabs" style="margin-bottom: 15px; display: flex; gap: 8px;">`;
-    for (const round of ROUND_ORDER) {
-      tabsHtml += `
-        <button class="knockout-groups-tab ${round === activeAdminVersusRound ? 'active' : ''}" 
-                onclick="event.preventDefault(); changeAdminVersusRound('${round}')"
-                style="flex: 1; text-align: center; font-size: 0.85rem; padding: 10px 5px;">
-          ${VERSUS_ROUND_LABELS[round] || round}
-        </button>
-      `;
-    }
-    tabsHtml += `</div>`;
-    
-    headerEl.innerHTML = `
-      <h3 style="margin-bottom: 12px; color: var(--gold); display: flex; align-items: center; gap: 8px;">
-        🏟️ Administrar Resultados de Eliminatorias
-      </h3>
-      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
-        Selecciona la ronda y registra el ganador de cada versus. Los ganadores avanzarán automáticamente en el bracket.
-      </p>
-      ${tabsHtml}
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
-        <span style="font-size: 0.85rem; color: var(--text-muted);">¿Necesitas ver o editar la fase de grupos?</span>
-        <button class="btn btn-secondary" onclick="event.preventDefault(); toggleAdminGroupHistory()" style="font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-primary);">
-          ${adminShowGroupHistory ? '👁️ Ocultar Historial de Grupos' : '👁️ Ver Historial de Grupos'}
-        </button>
+    'Final': '🏆 Final'
+  };
+  
+  let tabsHtml = `<div class="knockout-groups-tabs" style="margin-bottom: 15px; display: flex; gap: 8px;">`;
+  for (const round of ROUND_ORDER) {
+    tabsHtml += `
+      <button class="knockout-groups-tab ${round === activeAdminVersusRound ? 'active' : ''}" 
+              onclick="event.preventDefault(); changeAdminVersusRound('${round}')"
+              style="flex: 1; text-align: center; font-size: 0.85rem; padding: 10px 5px;">
+        ${VERSUS_ROUND_LABELS[round] || round}
+      </button>
+    `;
+  }
+  tabsHtml += `</div>`;
+  
+  headerEl.innerHTML = `
+    <h3 style="margin-bottom: 12px; color: var(--gold); display: flex; align-items: center; gap: 8px;">
+      🏟️ Administrar Resultados de Eliminatorias
+    </h3>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">
+      Selecciona la ronda y registra el ganador de cada versus. Los ganadores avanzarán automáticamente en el bracket.
+    </p>
+    ${tabsHtml}
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+      <span style="font-size: 0.85rem; color: var(--text-muted);">¿Necesitas ver o editar la fase de grupos?</span>
+      <button class="btn btn-secondary" onclick="event.preventDefault(); toggleAdminGroupHistory()" style="font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-primary);">
+        ${adminShowGroupHistory || tournamentPhase !== 'knockout' ? '👁️ Ocultar Historial de Grupos' : '👁️ Ver Historial de Grupos'}
+      </button>
+    </div>
+  `;
+  
+  container.appendChild(headerEl);
+  
+  // Render Knockout versus matches for the active round
+  const roundMatches = bracketData[activeAdminVersusRound] || [];
+  const roundCard = document.createElement('div');
+  roundCard.className = 'group-card';
+  roundCard.style.gridColumn = '1 / -1';
+  
+  if (roundMatches.length === 0) {
+    roundCard.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">⏳</span>
+        <p>Cargando partidos de eliminatorias...</p>
       </div>
     `;
-    
-    container.appendChild(headerEl);
-    
-    // Render Knockout versus matches for the active round
-    const roundMatches = bracketData[activeAdminVersusRound] || [];
-    const roundCard = document.createElement('div');
-    roundCard.className = 'group-card';
-    roundCard.style.gridColumn = '1 / -1';
-    
-    if (roundMatches.length === 0) {
-      roundCard.innerHTML = `
-        <div class="empty-state">
-          <span class="empty-icon">⏳</span>
-          <p>Cargando partidos de eliminatorias...</p>
-        </div>
-      `;
-    } else {
-      roundCard.innerHTML = `
-        <div class="group-header">
-          <span class="group-letter">${VERSUS_ROUND_LABELS[activeAdminVersusRound] || activeAdminVersusRound}</span>
-          <span class="group-label">${roundMatches.length} partidos</span>
-        </div>
-        <div class="group-matches" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 15px; padding: 15px;">
-          ${roundMatches.map(m => renderAdminMatchCard(m)).join('')}
-        </div>
-      `;
-    }
-    container.appendChild(roundCard);
+  } else {
+    roundCard.innerHTML = `
+      <div class="group-header">
+        <span class="group-letter">${VERSUS_ROUND_LABELS[activeAdminVersusRound] || activeAdminVersusRound}</span>
+        <span class="group-label">${roundMatches.length} partidos</span>
+      </div>
+      <div class="group-matches" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 15px; padding: 15px;">
+        ${roundMatches.map(m => renderAdminMatchCard(m)).join('')}
+      </div>
+    `;
   }
+  container.appendChild(roundCard);
   
   // If not knockout phase, OR if adminShowGroupHistory is true, render the group stage matches
   if (tournamentPhase !== 'knockout' || adminShowGroupHistory) {
@@ -1662,6 +1659,7 @@ async function toggleBetsPhase(phase) {
 }
 
 function isKnockoutPhaseLocked(groupName) {
+  if (tournamentPhase === 'groups') return true;
   if (groupName === 'R32') return !betsEnabledR32;
   if (groupName === 'R16') return !betsEnabledR16;
   if (groupName === 'QF') return !betsEnabledQF;
