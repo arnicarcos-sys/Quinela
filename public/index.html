@@ -419,6 +419,21 @@
           </div>
         </div>
 
+        <!-- Rules PDF Customizer -->
+        <div class="add-participant-card" style="margin-bottom: 30px; border-color: var(--gold);">
+          <h3>📜 Reglas del Torneo (PDF)</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Sube un nuevo archivo PDF para actualizar las reglas de la quinela.</p>
+          <form id="formUploadRules" style="display: flex; flex-direction: column; gap: 10px;">
+            <div class="input-row" style="align-items: center;">
+              <input type="file" id="rulesPdfInput" name="rules" accept="application/pdf" style="flex: 1; padding: 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary);" required>
+              <button type="submit" class="btn btn-primary" id="btnUploadRules" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px; background: linear-gradient(135deg, var(--gold), var(--bronze)); color: #000; font-weight: 600;">
+                <span class="btn-text">📥 Subir PDF</span>
+                <span class="btn-spinner" style="display:none;">⏳</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
         <!-- Points Configuration -->
         <div class="add-participant-card" style="margin-bottom: 30px;">
           <h3>🎯 Configuración de Puntos</h3>

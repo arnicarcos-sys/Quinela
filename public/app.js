@@ -131,6 +131,12 @@ function setupEventListeners() {
   $('#formTestMatch').addEventListener('submit', createTestMatch);
   $('#btnSaveTheme').addEventListener('click', saveTheme);
   
+  // Rules PDF Upload
+  const formUploadRules = $('#formUploadRules');
+  if (formUploadRules) {
+    formUploadRules.addEventListener('submit', uploadRulesPDF);
+  }
+  
   if ($('#btnSavePoints')) {
     $('#btnSavePoints').addEventListener('click', savePoints);
   }
@@ -2360,6 +2366,51 @@ async function saveTheme() {
     }
   } catch (err) {
     showToast('Error al guardar el tema', 'error');
+  }
+}
+
+async function uploadRulesPDF(e) {
+  e.preventDefault();
+  
+  const fileInput = $('#rulesPdfInput');
+  if (!fileInput || fileInput.files.length === 0) {
+    showToast('Selecciona un archivo PDF primero', 'error');
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  if (file.type !== 'application/pdf') {
+    showToast('Solo se permiten archivos en formato PDF', 'error');
+    return;
+  }
+  
+  const btn = $('#btnUploadRules');
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner">⏳ Subiendo...</span>';
+  
+  const formData = new FormData();
+  formData.append('rules', file);
+  
+  try {
+    const res = await fetch('/api/admin/upload-rules', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const data = await res.json();
+    
+    if (res.ok) {
+      showToast('✅ Reglas actualizadas con éxito', 'success');
+      fileInput.value = ''; // Clear file input
+    } else {
+      showToast(data.error || 'Error al subir el archivo', 'error');
+    }
+  } catch (err) {
+    showToast('Error al conectar con el servidor', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
   }
 }
 

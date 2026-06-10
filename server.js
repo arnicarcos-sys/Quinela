@@ -10,6 +10,16 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
+
+// Custom route for rules PDF (before express.static to override)
+app.get('/Quiniela%20Mundialista%202026.pdf', (req, res) => {
+  const customPdfPath = path.join(DATA_DIR, 'Quiniela_Mundialista_2026.pdf');
+  if (fs.existsSync(customPdfPath)) {
+    return res.sendFile(customPdfPath);
+  }
+  res.sendFile(path.join(__dirname, 'public', 'Quiniela Mundialista 2026.pdf'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = process.env.DATA_DIR || __dirname;
@@ -119,6 +129,31 @@ const uploadAvatar = multer({
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Solo se permiten imágenes'));
+  }
+});
+
+// ─── Rules PDF storage configuration ─────────────────────────
+const rulesStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, DATA_DIR),
+  filename: (req, file, cb) => cb(null, 'Quiniela_Mundialista_2026.pdf')
+});
+const uploadRules = multer({
+  storage: rulesStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') cb(null, true);
+    else cb(new Error('Solo se permiten archivos PDF'));
+  }
+});
+
+// Admin: Upload custom rules PDF
+app.post('/api/admin/upload-rules', uploadRules.single('rules'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se subió ningún archivo' });
+    }
+    res.json({ success: true, filename: req.file.filename });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
