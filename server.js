@@ -1291,6 +1291,7 @@ app.get('/api/participants/:id/history', (req, res) => {
         END as points_earned
       FROM matches m
       LEFT JOIN predictions p ON m.id = p.match_id AND p.participant_id = ?
+      WHERE m.group_name != 'Prueba'
       ORDER BY m.group_name, m.id
     `).all(req.params.id);
 
