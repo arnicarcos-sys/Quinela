@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=4.0">
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <!-- jsPDF for PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -63,7 +63,6 @@
       <span>Fase Final</span>
     </button>
   </nav>
-
   <!-- Main Content -->
   <main class="main-content">
 
@@ -115,6 +114,12 @@
             <strong style="display: block; font-size: 1.2rem; color: var(--accent-bright);" id="loggedInName"></strong>
             <span style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;" id="loggedInNickname"></span>
           </div>
+        </div>
+        <div class="participant-header-stats" id="participantHeaderStats" style="display: none; flex: 1; justify-content: center; gap: 24px; text-align: center; margin: 0 20px; padding: 0 20px; border-left: 1px solid var(--border); border-right: 1px solid var(--border);">
+           <div><span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Puntos</span><br><strong id="headerPoints" style="font-size: 1.5rem; color: var(--gold); text-shadow: 0 0 10px rgba(251,191,36,0.3);">0</strong></div>
+           <div><span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Posición</span><br><strong id="headerRank" style="font-size: 1.5rem; color: var(--text-primary);">#1</strong></div>
+           <div id="headerAciertosDiv"><span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Aciertos</span><br><strong id="headerAciertos" style="font-size: 1.5rem; color: var(--text-primary);">0</strong></div>
+           <div><span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: bold;">Pendientes</span><br><strong id="headerPending" style="font-size: 1.5rem; color: var(--text-primary);">0</strong></div>
         </div>
         <div style="display: flex; gap: 8px;">
           <button type="button" class="btn btn-secondary" onclick="openProfileModal()" style="padding: 8px 14px; font-size: 0.8rem;">⚙️ Mi Perfil</button>
@@ -254,21 +259,42 @@
 
         <!-- Tournament Phase Control -->
         <div class="add-participant-card phase-control-card" style="margin-bottom: 30px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <div>
-              <h3>🏆 Control de Torneo</h3>
-              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
-                Termina la Fase de Grupos y genera el Bracket de Eliminatorias con los 32 mejores equipos.
-              </p>
-            </div>
-            <div style="display: flex; gap: 8px;">
-              <button type="button" class="btn btn-primary" id="btnResetPhase" style="background: transparent; border: 1px solid var(--red); color: var(--red); padding: 10px 14px;" title="Reiniciar a Fase de Grupos">
-                <span>🔄</span> Reiniciar
-              </button>
-              <button type="button" class="btn btn-primary" id="btnAdvancePhase" style="background: linear-gradient(135deg, var(--accent), var(--accent-bright)); color: white; border: none; padding: 10px 18px;">
+          <h3>🏆 Control de Torneo</h3>
+          <div style="display: flex; flex-direction: column; gap: 16px; margin-top: 12px;">
+            
+            <!-- Botón 1: Empezar Eliminatorias -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; background: rgba(99,102,241,0.08); border-radius: var(--radius); border: 1px solid rgba(99,102,241,0.2);">
+              <div style="flex: 1; min-width: 200px;">
+                <p style="font-size: 0.9rem; font-weight: bold; color: var(--text-primary); margin-bottom: 4px;">⚡ Empezar Eliminatorias</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">Habilita las pestañas de eliminatorias para que los participantes comiencen a llenar sus pronósticos. La fase de grupos sigue visible.</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btnAdvancePhase" style="background: linear-gradient(135deg, var(--accent), var(--accent-bright)); color: white; border: none; padding: 10px 18px; white-space: nowrap;">
                 <span>⚡</span> Empezar Eliminatorias
               </button>
             </div>
+
+            <!-- Botón 2: Reset de Puntos -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; background: rgba(239,68,68,0.08); border-radius: var(--radius); border: 1px solid rgba(239,68,68,0.2);">
+              <div style="flex: 1; min-width: 200px;">
+                <p style="font-size: 0.9rem; font-weight: bold; color: var(--red); margin-bottom: 4px;">🔄 Reset de Puntos</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">Borra TODAS las predicciones de la fase de grupos y reinicia los puntos de todos los participantes a 0. Cierra la fase de grupos. <strong>⚠️ Irreversible.</strong></p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btnResetPoints" style="background: transparent; border: 2px solid var(--red); color: var(--red); padding: 10px 18px; white-space: nowrap;">
+                <span>🔄</span> Reset de Puntos
+              </button>
+            </div>
+
+            <!-- Botón 3: Reiniciar a Fase de Grupos (existente) -->
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: var(--radius); border: 1px dashed var(--border);">
+              <div style="flex: 1; min-width: 200px;">
+                <p style="font-size: 0.9rem; font-weight: bold; color: var(--text-muted); margin-bottom: 4px;">↩️ Reiniciar Torneo</p>
+                <p style="font-size: 0.8rem; color: var(--text-muted);">Revierte todo a la fase de grupos. Borra equipos del bracket y apuestas de eliminatorias.</p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btnResetPhase" style="background: transparent; border: 1px solid var(--red); color: var(--red); padding: 10px 14px; white-space: nowrap;">
+                <span>↩️</span> Reiniciar
+              </button>
+            </div>
+
           </div>
         </div>
 
@@ -348,15 +374,80 @@
 
         <!-- Predictions Visibility Control -->
         <div class="add-participant-card predictions-control-card" style="margin-bottom: 30px;">
-          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
-            <div>
-              <h3>👁️ Ver Votos / Predicciones</h3>
-              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Permite a los participantes hacer click sobre cualquier nombre en la tabla general para ver sus apuestas.</p>
-            </div>
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <span class="predictions-status-label" id="predictionsStatusLabel">Permitido</span>
+          <h3>👁️ Ver Votos / Predicciones por Fase</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Controla de manera individual si los participantes pueden ver las apuestas de otros para cada fase.</p>
+          <div class="phase-toggles-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;">
+            
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Fase de Grupos</span>
               <label class="toggle-switch">
                 <input type="checkbox" id="predictionsToggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Dieciseisavos (R32)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleR32" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Octavos de Final (R16)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleR16" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Cuartos de Final (QF)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleQF" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Semifinales (SF)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleSF" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Tercer Lugar (Third)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleThird" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border);">
+              <span style="font-size: 0.9rem;">Final (Final)</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="predictionsToggleFinal" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Aciertos Visibility Control -->
+        <div class="add-participant-card aciertos-control-card" style="margin-bottom: 30px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h3>👁️ Mostrar Columna de Aciertos</h3>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">Oculta o muestra la columna de aciertos en la tabla general para todos los participantes.</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <span class="predictions-status-label" id="aciertosStatusLabel">Visible</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="aciertosToggle" checked>
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -437,31 +528,53 @@
         <!-- Points Configuration -->
         <div class="add-participant-card" style="margin-bottom: 30px;">
           <h3>🎯 Configuración de Puntos</h3>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Define cuántos puntos se otorgan por acertar al equipo ganador y por acertar un empate.</p>
-          <div class="input-row" style="align-items: center;">
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Define cuántos puntos se otorgan por acertar en cada fase de la quiniela.</p>
+          
+          <h4 style="margin-top: 10px; margin-bottom: 8px; font-size: 0.95rem; color: var(--text-primary);">Fase de Grupos</h4>
+          <div class="input-row" style="align-items: center; margin-bottom: 20px;">
             <div style="flex: 1;">
-              <label for="inputPointsWin" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Puntos por Acierto (Gana)</label>
+              <label for="inputPointsWin" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Ganador / Resultado</label>
               <input type="number" id="inputPointsWin" value="3" min="0" max="100" style="width: 100%;">
             </div>
             <div style="flex: 1;">
-              <label for="inputPointsDraw" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Puntos por Empate (Acierto)</label>
+              <label for="inputPointsDraw" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Empate</label>
               <input type="number" id="inputPointsDraw" value="1" min="0" max="100" style="width: 100%;">
             </div>
-            <button class="btn btn-primary" id="btnSavePoints" style="align-self: flex-end; height: 44px;">
-              Guardar Puntos
-            </button>
           </div>
+
+          <h4 style="margin-bottom: 8px; font-size: 0.95rem; color: var(--text-primary);">Eliminatorias (Goles a los 90 min)</h4>
+          <div class="input-row" style="align-items: center; margin-bottom: 15px;">
+            <div style="flex: 1;">
+              <label for="inputPointsKoResult" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Acertar Resultado</label>
+              <input type="number" id="inputPointsKoResult" value="2" min="0" max="100" style="width: 100%;">
+            </div>
+            <div style="flex: 1;">
+              <label for="inputPointsKoScoreA" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Goles Local</label>
+              <input type="number" id="inputPointsKoScoreA" value="1" min="0" max="100" style="width: 100%;">
+            </div>
+            <div style="flex: 1;">
+              <label for="inputPointsKoScoreB" style="font-size: 0.8rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Goles Visitante</label>
+              <input type="number" id="inputPointsKoScoreB" value="1" min="0" max="100" style="width: 100%;">
+            </div>
+          </div>
+          
+          <button class="btn btn-primary" id="btnSavePoints" style="width: 100%; height: 44px; justify-content: center; margin-top: 10px;">
+            Guardar Configuración de Puntos
+          </button>
         </div>
 
         <!-- Virus Gratis (Fun Facts) Manager -->
         <div class="add-participant-card virus-admin-card" style="margin-bottom: 30px; border-color: #10b981;">
           <h3>🦠 Virus Gratis — Datos Curiosos</h3>
           <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Agrega datos curiosos del mundial. Los participantes podrán verlos con el botón 🦠 flotante.</p>
-          <div class="input-row" style="margin-bottom: 16px;">
-            <textarea id="virusFactInput" placeholder="Escribe un dato curioso..." maxlength="300" rows="2" style="flex: 1; padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
-            <button class="btn btn-primary" id="btnAddFact" style="align-self: flex-end; background: linear-gradient(135deg, #10b981, #059669); padding: 10px 18px;" onclick="addFunFact()">
-              <span>+</span> Agregar
-            </button>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+            <textarea id="virusFactInput" placeholder="Escribe un dato curioso..." maxlength="300" rows="2" style="padding: 10px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.9rem; resize: vertical;"></textarea>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <input type="file" id="virusImageInput" accept="image/*" title="Subir Imagen Opcional" style="flex: 1; padding: 6px; border-radius: var(--radius); border: 1px dashed #10b981; background: rgba(16, 185, 129, 0.05); color: var(--text-primary); font-size: 0.8rem;">
+              <button class="btn btn-primary" id="btnAddFact" style="background: linear-gradient(135deg, #10b981, #059669); padding: 8px 18px;" onclick="addFunFact()">
+                <span>+</span> Agregar
+              </button>
+            </div>
           </div>
           <div id="adminFactsList" class="admin-facts-list">
             <!-- Populated by JS -->
@@ -484,7 +597,6 @@
         </div>
       </div>
     </section>
-
   </main>
 
   <!-- Rules Button -->
@@ -653,6 +765,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=3.0"></script>
 </body>
 </html>

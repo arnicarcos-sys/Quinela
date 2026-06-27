@@ -7,17 +7,28 @@ async function testExcel() {
     const db = new Database('quinela.db');
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+    const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
+    const pointsKoScoreARow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_a'").get();
+    const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
+    
     const ptsWin = pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3;
     const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
+    const ptsKoResult = pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2;
+    const ptsKoScoreA = pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1;
+    const ptsKoScoreB = pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1;
 
     const participants = db.prepare('SELECT id, name, nickname FROM participants ORDER BY name').all();
     const allMatches = db.prepare('SELECT * FROM matches ORDER BY id').all();
-    const allPredictions = db.prepare('SELECT participant_id, match_id, prediction FROM predictions').all();
+    const allPredictions = db.prepare('SELECT participant_id, match_id, prediction, score_a, score_b FROM predictions').all();
 
-    const predMap = {};
+    const predScoresMap = {};
     for (const pr of allPredictions) {
-      if (!predMap[pr.participant_id]) predMap[pr.participant_id] = {};
-      predMap[pr.participant_id][pr.match_id] = pr.prediction;
+      if (!predScoresMap[pr.participant_id]) predScoresMap[pr.participant_id] = {};
+      predScoresMap[pr.participant_id][pr.match_id] = {
+        prediction: pr.prediction,
+        score_a: pr.score_a,
+        score_b: pr.score_b
+      };
     }
 
     const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
@@ -27,11 +38,26 @@ async function testExcel() {
     function calcPoints(participant, matchList) {
       let points = 0, aciertos = 0, total = 0;
       for (const m of matchList) {
-        const pred = predMap[participant.id]?.[m.id];
-        if (pred) total++;
-        if (m.result && pred === m.result) {
-          aciertos++;
-          points += m.result === 'D' ? ptsDraw : ptsWin;
+        const pred = predScoresMap[participant.id]?.[m.id];
+        if (pred && pred.prediction !== null) total++;
+        
+        if (m.result && pred && pred.prediction !== null) {
+          const isKo = knockoutRounds.includes(m.group_name);
+          if (isKo) {
+            const winnerPts = (pred.prediction === m.result) ? ptsKoResult : 0;
+            const exactScoreAPts = (pred.score_a === m.score_a && pred.score_a !== null && m.score_a !== null) ? ptsKoScoreA : 0;
+            const exactScoreBPts = (pred.score_b === m.score_b && pred.score_b !== null && m.score_b !== null) ? ptsKoScoreB : 0;
+            
+            points += winnerPts + exactScoreAPts + exactScoreBPts;
+            if (pred.prediction === m.result) {
+              aciertos++;
+            }
+          } else {
+            if (pred.prediction === m.result) {
+              aciertos++;
+              points += m.result === 'D' ? ptsDraw : ptsWin;
+            }
+          }
         }
       }
       return { points, aciertos, total };

@@ -15,9 +15,19 @@ let betsEnabledQF = true;
 let betsEnabledSF = true;
 let betsEnabledThird = true;
 let betsEnabledFinal = true;
-let showPredictions = true;
+let showPredictions = true; // Group stage
+let showPredictionsR32 = true;
+let showPredictionsR16 = true;
+let showPredictionsQF = true;
+let showPredictionsSF = true;
+let showPredictionsThird = true;
+let showPredictionsFinal = true;
+let showAciertos = true;
 let pointsWin = 3;
 let pointsDraw = 1;
+let pointsKoResult = 2;
+let pointsKoScoreA = 1;
+let pointsKoScoreB = 1;
 let predictionStats = {};
 let standingsData = {};
 let flagEffectsData = {};
@@ -26,6 +36,8 @@ let activeAdminVersusRound = 'R32';
 let tempPredictions = {};
 let activeTendenciasFilter = 'all';
 let lastSeenLeaderboardMaxPoints = -1;
+let unlockedGroups = {};
+let unlockedMatches = {};
 
 const DEFAULT_AVATAR = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><rect width="80" height="80" fill="%23818cf8" rx="40"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="central" font-size="36" fill="white">⚽</text></svg>');
 
@@ -110,7 +122,16 @@ function setupEventListeners() {
 
   // Predictions toggle
   if ($('#predictionsToggle')) {
-    $('#predictionsToggle').addEventListener('change', togglePredictionsVisibility);
+    $('#predictionsToggle').addEventListener('change', () => togglePredictionsVisibility('groups'));
+  }
+  phases.forEach(phase => {
+    const pToggle = $(`#predictionsToggle${phase}`);
+    if (pToggle) {
+      pToggle.addEventListener('change', () => togglePredictionsVisibilityPhase(phase));
+    }
+  });
+  if ($('#aciertosToggle')) {
+    $('#aciertosToggle').addEventListener('change', toggleAciertosVisibility);
   }
 
   // Celebrations toggle
@@ -151,6 +172,9 @@ function setupEventListeners() {
   }
   if ($('#btnResetPhase')) {
     $('#btnResetPhase').addEventListener('click', resetTournamentPhase);
+  }
+  if ($('#btnResetPoints')) {
+    $('#btnResetPoints').addEventListener('click', resetPoints);
   }
 
   // Virus Gratis
@@ -316,7 +340,17 @@ async function loadData() {
 
     // Predictions visibility state
     showPredictions = settings.showPredictions !== undefined ? settings.showPredictions : true;
+    showPredictionsR32 = settings.showPredictionsR32 !== undefined ? settings.showPredictionsR32 : true;
+    showPredictionsR16 = settings.showPredictionsR16 !== undefined ? settings.showPredictionsR16 : true;
+    showPredictionsQF = settings.showPredictionsQF !== undefined ? settings.showPredictionsQF : true;
+    showPredictionsSF = settings.showPredictionsSF !== undefined ? settings.showPredictionsSF : true;
+    showPredictionsThird = settings.showPredictionsThird !== undefined ? settings.showPredictionsThird : true;
+    showPredictionsFinal = settings.showPredictionsFinal !== undefined ? settings.showPredictionsFinal : true;
     updatePredictionsUI();
+    
+    // Aciertos visibility state
+    showAciertos = settings.showAciertos !== undefined ? settings.showAciertos : true;
+    updateAciertosUI();
     
     // Celebrations state
     window.celebrationsEnabled = settings.celebrationsEnabled !== undefined ? settings.celebrationsEnabled : true;
@@ -327,8 +361,15 @@ async function loadData() {
     // Points settings
     pointsWin = settings.pointsWin !== undefined ? settings.pointsWin : 3;
     pointsDraw = settings.pointsDraw !== undefined ? settings.pointsDraw : 1;
+    pointsKoResult = settings.pointsKoResult !== undefined ? settings.pointsKoResult : 2;
+    pointsKoScoreA = settings.pointsKoScoreA !== undefined ? settings.pointsKoScoreA : 1;
+    pointsKoScoreB = settings.pointsKoScoreB !== undefined ? settings.pointsKoScoreB : 1;
+    
     if ($('#inputPointsWin')) $('#inputPointsWin').value = pointsWin;
     if ($('#inputPointsDraw')) $('#inputPointsDraw').value = pointsDraw;
+    if ($('#inputPointsKoResult')) $('#inputPointsKoResult').value = pointsKoResult;
+    if ($('#inputPointsKoScoreA')) $('#inputPointsKoScoreA').value = pointsKoScoreA;
+    if ($('#inputPointsKoScoreB')) $('#inputPointsKoScoreB').value = pointsKoScoreB;
 
     // Tournament Phase
     tournamentPhase = settings.tournamentPhase || 'groups';
@@ -340,7 +381,7 @@ async function loadData() {
     updateStats(stats);
     renderLeaderboard();
     renderGroups();
-    renderAdminPanel();
+    if (!window.skipAdminPanelRender) renderAdminPanel();
     renderTendencias();
     loadFunFacts();
   } catch (err) {
@@ -477,6 +518,7 @@ async function participantLogin() {
     $('#participantLoginCard').style.display = 'none';
     $('#participantHeaderCard').style.display = 'flex';
     $('#groupsGrid').style.display = 'grid';
+    $('#participantHeaderStats').style.display = 'flex';
     
     showToast(`👋 ¡Hola ${data.nickname || data.name}!`, 'success');
     loadPredictions(selectedParticipant.id);
@@ -489,6 +531,8 @@ function participantLogout() {
   selectedParticipant = null;
   currentPredictions = {};
   tempPredictions = {};
+  unlockedGroups = {};
+  unlockedMatches = {};
   
   $('#loginPassword').value = '';
   $('#participantLoginCard').style.display = 'flex';
@@ -532,7 +576,7 @@ function renderLeaderboard() {
       <tr>
         <th style="text-align:center">#</th>
         <th>Participante</th>
-        <th style="text-align:center">Aciertos</th>
+        ${showAciertos ? '<th style="text-align:center">Aciertos</th>' : ''}
         <th style="text-align:center">Pendientes</th>
         <th style="text-align:center">Puntos</th>
         <th></th>
@@ -558,10 +602,27 @@ function renderLeaderboard() {
           const rowClass = isLeader ? 'leaderboard-leader-row' : '';
           
           const medal = isPodium ? (rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉') : '';
-          const pending = Math.max(0, totalMatches - p.total_predictions);
+          const pending = p.pending_predictions !== undefined ? p.pending_predictions : Math.max(0, totalMatches - p.total_predictions);
           
-          const isClickable = isAdmin || showPredictions || (selectedParticipant && selectedParticipant.id === p.id);
+          const isClickable = isAdmin || 
+                              (selectedParticipant && selectedParticipant.id === p.id) || 
+                              showPredictions || 
+                              showPredictionsR32 || 
+                              showPredictionsR16 || 
+                              showPredictionsQF || 
+                              showPredictionsSF || 
+                              showPredictionsThird || 
+                              showPredictionsFinal;
           const clickableClass = isClickable ? 'clickable-row' : 'non-clickable-row';
+          
+          if (selectedParticipant && p.id === selectedParticipant.id) {
+            updateHeaderStats({
+              points: p.points,
+              rank: rank,
+              aciertos: p.aciertos,
+              pending: pending
+            });
+          }
 
           const avatarClass = isPodium ? `rank-${rank}-avatar` : '';
           const avatarSrc = p.avatar || DEFAULT_AVATAR;
@@ -586,7 +647,7 @@ function renderLeaderboard() {
                 </div>
                 ${displayName}
               </td>
-              <td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>
+              ${showAciertos ? `<td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>` : ''}
               <td class="pending-cell" style="text-align:center">
                 <span class="badge ${pending > 0 ? 'badge-warning' : 'badge-success'}">${pending}</span>
               </td>
@@ -710,7 +771,6 @@ function renderGroupStageCards(container, isHistoryView) {
     if (b === 'Prueba') return 1;
     return a.localeCompare(b);
   });
-  
   for (const groupName of groupNames) {
     const matches = matchesData[groupName];
     const card = document.createElement('div');
@@ -719,6 +779,12 @@ function renderGroupStageCards(container, isHistoryView) {
     const groupStandings = standingsData[groupName];
     const standingsHtml = groupStandings ? renderStandingsTable(groupStandings) : '';
     
+    const isGroupSaved = matches.length > 0 && matches.every(m => {
+      const pred = tempPredictions[m.id];
+      const saved = currentPredictions[m.id];
+      return saved !== undefined && pred === saved;
+    });
+
     card.innerHTML = `
       <div class="group-header">
         <span class="group-letter">Grupo ${groupName}</span>
@@ -728,12 +794,18 @@ function renderGroupStageCards(container, isHistoryView) {
       <div class="group-matches">
         ${matches.map(m => renderMatchCard(m)).join('')}
       </div>
-      ${selectedParticipant && !isHistoryView ? `
-        <div class="group-footer" style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.1);">
-          <button class="btn btn-primary btn-save-group" onclick="saveGroupBets(this, '${groupName}')">
-            <span class="btn-text">💾 Guardar Apuestas</span>
-            <span class="btn-spinner" style="display:none;">⏳</span>
-          </button>
+      ${selectedParticipant && !isHistoryView && betsEnabled ? `
+        <div class="group-footer" style="padding: 12px 16px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: rgba(0,0,0,0.1); gap: 8px;">
+          ${isGroupSaved && !unlockedGroups[groupName] ? `
+            <button class="btn btn-secondary btn-modify-group" onclick="unlockGroup('${groupName}')" style="display: flex; align-items: center; gap: 6px;">
+              <span>✏️ Modificar Pronósticos</span>
+            </button>
+          ` : `
+            <button class="btn btn-primary btn-save-group" onclick="saveGroupBets(this, '${groupName}')">
+              <span class="btn-text">💾 Guardar Apuestas</span>
+              <span class="btn-spinner" style="display:none;">⏳</span>
+            </button>
+          `}
         </div>
       ` : ''}
     `;
@@ -749,6 +821,7 @@ function renderKnockoutVersus(container) {
   banner.innerHTML = `
     <h3>⚔️ Fase de Eliminatorias</h3>
     <p>${selectedParticipant ? 'Selecciona al ganador de cada duelo' : 'Inicia sesión para hacer tus pronósticos'}</p>
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; font-style: italic;">* Ganador o Empate dentro del Tiempo Regular, 90 min Reglamentarios</p>
   `;
   container.appendChild(banner);
   
@@ -808,17 +881,26 @@ function renderKnockoutVersus(container) {
     const isTBD = match.team_a === 'A definir' || match.team_b === 'A definir';
     const hasResult = match.result !== null;
     const prediction = tempPredictions[match.id] || currentPredictions[match.id];
+    const savedPrediction = currentPredictions[match.id];
     
+    let isSaved = false;
+    if (savedPrediction) {
+      const p1 = typeof prediction === 'object' ? prediction : { prediction: prediction, score_a: null, score_b: null };
+      const p2 = typeof savedPrediction === 'object' ? savedPrediction : { prediction: savedPrediction, score_a: null, score_b: null };
+      isSaved = p1.prediction === p2.prediction && p1.score_a === p2.score_a && p1.score_b === p2.score_b;
+    }
+    
+    // prediction is either a string outcome (e.g. legacy) or object with score_a/b
+    const pred_score_a = (prediction && typeof prediction === 'object' && prediction.score_a !== null) ? prediction.score_a : '';
+    const pred_score_b = (prediction && typeof prediction === 'object' && prediction.score_b !== null) ? prediction.score_b : '';
+    const pred_outcome = (prediction && typeof prediction === 'object') ? prediction.prediction : prediction;
+
     const card = document.createElement('div');
     card.className = `vs-card ${hasResult ? 'has-result' : ''} ${isTBD ? 'tbd-card' : ''}`;
     card.style.animationDelay = `${i * 0.06}s`;
     
-    // Date
+    // Date (Hidden per user request)
     let dateHtml = '';
-    if (match.match_datetime) {
-      dateHtml = `<div class="vs-card-date">🕒 ${new Date(match.match_datetime).toLocaleString('es-MX', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>`;
-    }
-    
     // Winner/loser classes
     const teamAClass = hasResult ? (match.result === 'A' ? 'winner-team' : 'loser-team') : '';
     const teamBClass = hasResult ? (match.result === 'B' ? 'winner-team' : 'loser-team') : '';
@@ -827,46 +909,157 @@ function renderKnockoutVersus(container) {
     const effectA = flagEffectsData[match.flag_a] ? flagEffectsData[match.flag_a].effect : '';
     const effectB = flagEffectsData[match.flag_b] ? flagEffectsData[match.flag_b].effect : '';
     
-    // Prediction buttons
+    // Prediction inputs
     let predictionHtml = '';
     const phaseLocked = isKnockoutPhaseLocked(activeVersusRound);
-    if (selectedParticipant && !hasResult && !isTBD && !phaseLocked) {
+    if (selectedParticipant && !isTBD) {
+      const disabledAttr = (phaseLocked || (isSaved && !unlockedMatches[match.id]) || hasResult) ? 'disabled' : '';
       predictionHtml = `
-        <div class="vs-prediction-row">
-          <button class="vs-pred-btn ${prediction === 'A' ? 'selected' : ''}" 
-                  onclick="setVsPrediction(${match.id}, 'A')">
-            🟢 ${match.team_a}
+        <div class="vs-prediction-row" style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; margin-bottom: 8px;">
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase;">Goles Local</span>
+            <input type="number" class="score-input" value="${pred_score_a}" min="0" max="99" 
+                   style="width: 46px; text-align: center; padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; font-weight: bold;" 
+                   oninput="setVsScore(${match.id}, 'A', this.value)" ${disabledAttr}>
+          </div>
+          <span style="font-weight: bold; margin-top: 15px; color: var(--text-muted);">-</span>
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px; text-transform: uppercase;">Goles Visita</span>
+            <input type="number" class="score-input" value="${pred_score_b}" min="0" max="99" 
+                   style="width: 46px; text-align: center; padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; font-weight: bold;" 
+                   oninput="setVsScore(${match.id}, 'B', this.value)" ${disabledAttr}>
+          </div>
+        </div>
+        <div class="prediction-row" style="margin-top: 10px; margin-bottom: 5px;">
+          <button id="btn-pred-${match.id}-A" class="pred-btn ${pred_outcome === 'A' ? 'selected-a' : ''}" 
+                  style="pointer-events: none;" ${disabledAttr}>
+            ${match.team_a}
+            <span class="pred-label">Gana</span>
           </button>
-          <button class="vs-pred-btn ${prediction === 'B' ? 'selected' : ''}" 
-                  onclick="setVsPrediction(${match.id}, 'B')">
-            🟢 ${match.team_b}
+          <button id="btn-pred-${match.id}-D" class="pred-btn ${pred_outcome === 'D' ? 'selected-d' : ''}" 
+                  style="pointer-events: none;" ${disabledAttr}>
+            Empate
+          </button>
+          <button id="btn-pred-${match.id}-B" class="pred-btn ${pred_outcome === 'B' ? 'selected-b' : ''}" 
+                  style="pointer-events: none;" ${disabledAttr}>
+            ${match.team_b}
+            <span class="pred-label">Gana</span>
           </button>
         </div>
+        ${hasResult ? '' : (!phaseLocked ? `
+          <div style="display: flex; gap: 8px; width: 100%; margin-top: 10px;">
+            <button class="btn-save-single-match" 
+                    onclick="saveSinglePrediction(${match.id}, this, true)" 
+                    ${isSaved && !unlockedMatches[match.id] ? 'disabled' : ''} 
+                    style="flex: 1; margin: 0;">
+              <span>${isSaved && !unlockedMatches[match.id] ? '✅ Pronóstico Guardado' : '💾 Guardar Pronóstico'}</span>
+            </button>
+            ${isSaved && !unlockedMatches[match.id] ? `
+              <button class="btn btn-secondary btn-modify-prediction" 
+                      onclick="unlockPrediction(${match.id})" 
+                      style="padding: 6px 12px; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; border-radius: var(--radius); height: 100%; border: 1px solid var(--border);">
+                ✏️ Modificar
+              </button>
+            ` : ''}
+          </div>
+        ` : '<div class="vs-result-badge vs-result-pending">🔒 Pronósticos cerrados para esta fase</div>')}
       `;
-    } else if (selectedParticipant && !hasResult && !isTBD && phaseLocked) {
-      predictionHtml = `<div class="vs-result-badge vs-result-pending">🔒 Pronósticos cerrados para esta fase</div>`;
     } else if (selectedParticipant && !hasResult && isTBD) {
       predictionHtml = `<div class="vs-result-badge vs-result-pending">⏳ Equipos por definir</div>`;
     } else if (!selectedParticipant && !isTBD) {
       predictionHtml = `<div class="vs-result-badge vs-result-pending">🔒 Inicia sesión para pronosticar</div>`;
     }
     
-    // Result badge
+    // Result badge & points display
     let resultBadge = '';
+    let pointsEarnedHtml = '';
     if (hasResult && selectedParticipant) {
-      if (!prediction) {
-        resultBadge = `<div class="vs-result-badge vs-result-pending">⚪ Sin pronóstico</div>`;
-      } else if (prediction === match.result) {
-        resultBadge = `<div class="vs-result-badge vs-result-correct">✅ ¡Acertaste! +${pointsWin} pts</div>`;
+      if (!prediction || pred_outcome === null) {
+        resultBadge = `<div class="vs-result-badge vs-result-pending">⚪ Sin pronóstico (0 pts)</div>`;
+        pointsEarnedHtml = `
+          <div style="position: absolute; top: -10px; left: 10px; background: var(--red-dim); border: 1px solid rgba(248, 113, 113, 0.3); padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; color: var(--red); box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; display: flex; align-items: center;">
+            +0 pts
+          </div>
+        `;
       } else {
-        resultBadge = `<div class="vs-result-badge vs-result-wrong">❌ Fallaste</div>`;
+        const matchOutcome = match.result;
+        const predOutcome = pred_outcome;
+        
+        const ptsKoResult = window.pointsRules?.knockout?.result ?? 2;
+        const ptsKoScoreA = window.pointsRules?.knockout?.score_a ?? 1;
+        const ptsKoScoreB = window.pointsRules?.knockout?.score_b ?? 1;
+
+        const winnerPts = (predOutcome === matchOutcome) ? ptsKoResult : 0;
+        const exactScoreAPts = (pred_score_a === match.score_a && pred_score_a !== null && match.score_a !== null) ? ptsKoScoreA : 0;
+        const exactScoreBPts = (pred_score_b === match.score_b && pred_score_b !== null && match.score_b !== null) ? ptsKoScoreB : 0;
+        
+        const earned = winnerPts + exactScoreAPts + exactScoreBPts;
+        
+        const badgeColor = earned > 0 ? 'var(--green)' : 'var(--red)';
+        const badgeBg = earned > 0 ? 'var(--green-dim)' : 'var(--red-dim)';
+        const badgeBorder = earned > 0 ? 'rgba(52, 211, 153, 0.3)' : 'rgba(248, 113, 113, 0.3)';
+        
+        pointsEarnedHtml = `
+          <div style="position: absolute; top: -10px; left: 10px; background: ${badgeBg}; border: 1px solid ${badgeBorder}; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; font-weight: bold; color: ${badgeColor}; box-shadow: 0 4px 6px rgba(0,0,0,0.3); z-index: 10; display: flex; align-items: center;">
+            +${earned} pt${earned !== 1 ? 's' : ''}
+          </div>
+        `;
+        
+        if (predOutcome === matchOutcome) {
+          let detailHtml = [];
+          if (winnerPts) detailHtml.push(`+${ptsKoResult} por Ganador`);
+          if (exactScoreAPts) detailHtml.push(`+${ptsKoScoreA} por goles local`);
+          if (exactScoreBPts) detailHtml.push(`+${ptsKoScoreB} por goles visita`);
+          
+          resultBadge = `
+            <div class="vs-result-badge vs-result-correct" style="display: flex; flex-direction: column; align-items: center; line-height: 1.4;">
+              <span>✅ ¡Acertaste!</span>
+              <span style="font-size: 0.75rem; font-weight: normal; opacity: 0.9;">(${detailHtml.join(', ')})</span>
+            </div>
+          `;
+        } else {
+          let detailHtml = [];
+          if (exactScoreAPts) detailHtml.push(`+${ptsKoScoreA} por goles local`);
+          if (exactScoreBPts) detailHtml.push(`+${ptsKoScoreB} por goles visita`);
+          
+          if (earned > 0) {
+            resultBadge = `
+              <div class="vs-result-badge vs-result-wrong" style="display: flex; flex-direction: column; align-items: center; line-height: 1.4; background: rgba(251, 191, 36, 0.15); border-color: var(--gold); color: var(--gold);">
+                <span>⚖️ Fallaste el ganador</span>
+                <span style="font-size: 0.75rem; font-weight: normal; opacity: 0.9;">(${detailHtml.join(', ')})</span>
+              </div>
+            `;
+          } else {
+            resultBadge = `<div class="vs-result-badge vs-result-wrong">❌ Fallaste (0 pts)</div>`;
+          }
+        }
       }
     } else if (hasResult && !selectedParticipant) {
-      const winnerName = match.result === 'A' ? match.team_a : match.team_b;
-      resultBadge = `<div class="vs-result-badge vs-result-pending">🏆 Ganó ${winnerName}</div>`;
+      resultBadge = `<div class="vs-result-badge vs-result-pending">🏆 Partido Finalizado</div>`;
+    }
+
+    const middleText = '<span class="vs-badge">VS</span>';
+    
+    let finalResultBadge = '';
+    if (hasResult) {
+      let scoreText = '';
+      if (match.score_a !== null && match.score_b !== null && match.score_a !== undefined) {
+         scoreText = `${match.score_a} - ${match.score_b}`;
+      } else {
+         scoreText = match.result === 'A' ? match.team_a : match.result === 'B' ? match.team_b : 'Empate';
+      }
+      finalResultBadge = `
+        <div class="official-result-badge">
+          <span style="color: var(--text-muted); text-transform: uppercase; font-size: 0.70rem; letter-spacing: 0.5px;">Resultado Oficial</span>
+          <span style="color: var(--gold); font-size: 1.15rem; font-weight: 900; letter-spacing: 1px;">${scoreText}</span>
+        </div>
+      `;
     }
     
+    card.style.position = 'relative';
     card.innerHTML = `
+      ${finalResultBadge}
+      ${pointsEarnedHtml}
       ${dateHtml}
       <div class="vs-teams-row">
         <div class="vs-team ${teamAClass}">
@@ -876,7 +1069,7 @@ function renderKnockoutVersus(container) {
           </div>
           <span class="vs-team-name">${match.team_a}</span>
         </div>
-        <span class="vs-badge">VS</span>
+        ${middleText}
         <div class="vs-team ${teamBClass}">
           <div style="position: relative; display: inline-flex;">
             <img class="vs-team-flag ${effectB}" data-flag="${match.flag_b}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
@@ -962,6 +1155,14 @@ function renderMatchCard(match) {
   const prediction = tempPredictions[match.id];
   const noParticipant = !selectedParticipant;
   
+  const groupMatches = matchesData[match.group_name] || [];
+  const isGroupSaved = groupMatches.length > 0 && groupMatches.every(m => {
+    const pred = tempPredictions[m.id];
+    const saved = currentPredictions[m.id];
+    return saved !== undefined && pred === saved;
+  });
+  const isLocked = isGroupSaved && !unlockedGroups[match.group_name];
+  
   const teamAClass = prediction === 'A' ? 'selected' : '';
   const teamBClass = prediction === 'B' ? 'selected' : '';
   const drawClass = prediction === 'D' ? 'selected' : '';
@@ -975,7 +1176,13 @@ function renderMatchCard(match) {
       resultBadge = `<div class="match-result-badge result-no-pred">⚪ Sin predicción</div>`;
     } else if (prediction === match.result) {
       const pts = match.result === 'D' ? pointsDraw : pointsWin;
-      resultBadge = `<div class="match-result-badge result-correct">✅ ¡Acertaste! +${pts} pts</div>`;
+      const reason = match.result === 'D' ? 'empate' : 'ganador';
+      resultBadge = `
+        <div class="match-result-badge result-correct" style="display: flex; flex-direction: column; align-items: center; line-height: 1.4;">
+          <span>✅ ¡Acertaste!</span>
+          <span style="font-size: 0.75rem; font-weight: normal; opacity: 0.9;">(+${pts} por acertar al ${reason})</span>
+        </div>
+      `;
     } else {
       resultBadge = `<div class="match-result-badge result-wrong">❌ Fallaste</div>`;
     }
@@ -985,8 +1192,8 @@ function renderMatchCard(match) {
   }
   
   return `
-    <div class="match-card ${hasResult ? 'has-result' : ''}">
-      ${match.match_datetime ? `<div class="match-date" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-bottom: 8px;">🕒 ${new Date(match.match_datetime).toLocaleString('es-MX', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>` : ''}
+    <div class="match-card ${hasResult ? 'has-result' : ''}" style="position: relative;">
+      <!-- Date hidden -->
       <div class="match-teams">
         <div class="match-team">
           <div style="position: relative; display: inline-flex;">
@@ -1008,24 +1215,24 @@ function renderMatchCard(match) {
         <div class="prediction-row">
           <button class="pred-btn ${prediction === 'A' ? 'selected-a' : ''}" 
                   onclick="setLocalPrediction(${match.id}, 'A')" 
-                  ${hasResult || !betsEnabled || tournamentPhase === 'knockout' ? 'disabled' : ''}>
+                  ${hasResult || !betsEnabled || isLocked ? 'disabled' : ''}>
             ${match.team_a}
             <span class="pred-label">Gana</span>
           </button>
           <button class="pred-btn ${prediction === 'D' ? 'selected-d' : ''}" 
                   onclick="setLocalPrediction(${match.id}, 'D')" 
-                  ${hasResult || !betsEnabled || tournamentPhase === 'knockout' ? 'disabled' : ''}>
+                  ${hasResult || !betsEnabled || isLocked ? 'disabled' : ''}>
             Empate
             <span class="pred-label">1 pt</span>
           </button>
           <button class="pred-btn ${prediction === 'B' ? 'selected-b' : ''}" 
                   onclick="setLocalPrediction(${match.id}, 'B')" 
-                  ${hasResult || !betsEnabled || tournamentPhase === 'knockout' ? 'disabled' : ''}>
+                  ${hasResult || !betsEnabled || isLocked ? 'disabled' : ''}>
             ${match.team_b}
             <span class="pred-label">Gana</span>
           </button>
         </div>
-        ${tournamentPhase === 'knockout' && !hasResult ? '<div class="bets-closed-banner">🔒 Fase de Grupos Finalizada</div>' : (!betsEnabled && !hasResult ? '<div class="bets-closed-banner">🔒 Apuestas cerradas por el administrador</div>' : '')}
+        ${!betsEnabled && !hasResult ? '<div class="bets-closed-banner">🔒 Apuestas cerradas por el administrador</div>' : ''}
       ` : `<div class="pred-summary">Selecciona tu nombre arriba para predecir</div>`}
       ${resultBadge}
     </div>
@@ -1102,8 +1309,10 @@ async function saveGroupBets(btn, groupName) {
       confetti({ particleCount: 30, spread: 40, origin: { x, y }, colors: ['#34d399', '#ffffff'] });
     }
     
-    // Reload data to update leaderboard/standings/stats
-    await loadData();
+    // Avoid loadData() to prevent UI flicker
+    // await loadData();
+    
+    unlockedGroups[groupName] = false;
     
     // Revert after 2 seconds
     setTimeout(() => {
@@ -1114,6 +1323,7 @@ async function saveGroupBets(btn, groupName) {
       btn.style.background = '';
       btn.style.color = '';
       btn.style.boxShadow = '';
+      renderGroups();
     }, 2000);
     
   } catch (err) {
@@ -1129,6 +1339,8 @@ async function loadPredictions(participantId) {
     const res = await fetch(`/api/predictions/${participantId}`);
     currentPredictions = await res.json();
     tempPredictions = { ...currentPredictions }; // Copy to buffer
+    unlockedGroups = {};
+    unlockedMatches = {};
     renderGroups();
     renderLeaderboard();
   } catch (err) {
@@ -1141,14 +1353,135 @@ window.setLocalPrediction = function(matchId, prediction) {
     showToast('Selecciona tu nombre primero', 'error');
     return;
   }
-  tempPredictions[matchId] = prediction;
+  let predObj = tempPredictions[matchId];
+  if (!predObj || typeof predObj !== 'object') {
+    predObj = { prediction: prediction, score_a: null, score_b: null };
+  } else {
+    predObj.prediction = prediction;
+  }
+  tempPredictions[matchId] = predObj;
   
-  if (tournamentPhase === 'knockout') {
-    if (document.getElementById('sectionKnockout').classList.contains('active')) {
-      loadBracket();
+  const buttons = document.querySelectorAll(`button[onclick="setLocalPrediction(${matchId}, 'A')"], button[onclick="setLocalPrediction(${matchId}, 'B')"], button[onclick="setLocalPrediction(${matchId}, 'D')"]`);
+  buttons.forEach(btn => {
+    btn.classList.remove('selected-a', 'selected-b', 'selected-d');
+    if (btn.getAttribute('onclick').includes(`'${prediction}'`)) {
+      btn.classList.add(`selected-${prediction.toLowerCase()}`);
+    }
+  });
+};
+
+window.saveSinglePrediction = async function(matchId, btn, isKnockout = false) {
+  if (!selectedParticipant) {
+    showToast('Inicia sesión para guardar tus apuestas', 'error');
+    return;
+  }
+
+  const pred = tempPredictions[matchId];
+  if (!pred) {
+    showToast('Por favor, selecciona una predicción primero', 'error');
+    return;
+  }
+
+  let payload = {
+    participant_id: selectedParticipant.id,
+    match_id: matchId
+  };
+
+  if (isKnockout) {
+    if (typeof pred === 'object') {
+      if (!pred.prediction) {
+        showToast('Debes seleccionar quién gana o empata usando los botones de abajo', 'error');
+        return;
+      }
+      payload.prediction = pred.prediction;
+      payload.score_a = (pred.score_a !== null && pred.score_a !== '') ? parseInt(pred.score_a, 10) : null;
+      payload.score_b = (pred.score_b !== null && pred.score_b !== '') ? parseInt(pred.score_b, 10) : null;
+    } else {
+      payload.prediction = pred;
+    }
+  } else {
+    if (typeof pred === 'object') {
+      payload.prediction = pred.prediction;
+    } else {
+      payload.prediction = pred;
     }
   }
-  renderGroups();
+
+  const originalHtml = btn.innerHTML;
+  const originalBackground = btn.style.background;
+  const originalColor = btn.style.color;
+  const originalBorder = btn.style.border;
+  const originalBoxShadow = btn.style.boxShadow;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner">⏳ Guardando...</span>';
+  btn.classList.add('saving');
+
+  try {
+    const res = await fetch('/api/predictions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || 'Error al guardar la predicción', 'error');
+      btn.innerHTML = originalHtml;
+      btn.disabled = false;
+      btn.classList.remove('saving');
+      return;
+    }
+
+    if (isKnockout) {
+      currentPredictions[matchId] = { 
+        prediction: payload.prediction, 
+        score_a: payload.score_a, 
+        score_b: payload.score_b 
+      };
+      unlockedMatches[matchId] = false;
+    } else {
+      currentPredictions[matchId] = payload.prediction;
+    }
+    tempPredictions[matchId] = currentPredictions[matchId];
+
+    showToast('⚽ Pronóstico guardado con éxito', 'success');
+
+    btn.innerHTML = '<span>✅ Guardado</span>';
+    btn.style.background = 'rgba(52, 211, 153, 0.15)';
+    btn.style.color = 'var(--green)';
+    btn.style.border = '1px solid var(--green)';
+    btn.style.boxShadow = 'none';
+
+    if (window.confetti && window.celebrationsEnabled !== false) {
+      const rect = btn.getBoundingClientRect();
+      const x = (rect.left + rect.width / 2) / window.innerWidth;
+      const y = (rect.top + rect.height / 2) / window.innerHeight;
+      confetti({ particleCount: 15, spread: 30, origin: { x, y }, colors: ['#34d399', '#ffffff'] });
+    }
+
+    const card = btn.closest('.vs-card, .match-card');
+    if (card) {
+      const inputs = card.querySelectorAll('.score-input, .pred-btn');
+      inputs.forEach(el => el.disabled = true);
+    }
+
+    setTimeout(() => {
+      btn.disabled = true;
+      btn.classList.remove('saving');
+      renderGroups();
+    }, 1000);
+
+  } catch (err) {
+    showToast('Error al conectar con el servidor', 'error');
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+    btn.style.background = originalBackground;
+    btn.style.color = originalColor;
+    btn.style.border = originalBorder;
+    btn.style.boxShadow = originalBoxShadow;
+    btn.classList.remove('saving');
+  }
 };
 
 async function setPrediction(matchId, prediction) {
@@ -1183,9 +1516,59 @@ async function setPrediction(matchId, prediction) {
   }
 }
 
-async function setVsPrediction(matchId, prediction) {
-  setLocalPrediction(matchId, prediction);
-}
+window.setVsScore = function(matchId, team, val) {
+  if (!selectedParticipant) {
+    showToast('Selecciona tu nombre primero', 'error');
+    return;
+  }
+  
+  let predObj = tempPredictions[matchId];
+  if (!predObj || typeof predObj !== 'object') {
+    // If it was a string (legacy/group stage) or empty, initialize as object
+    const legacyPred = (predObj && typeof predObj === 'string') ? predObj : null;
+    predObj = { prediction: legacyPred, score_a: null, score_b: null };
+  }
+  
+  const valInt = val.trim() === '' ? null : parseInt(val, 10);
+  if (team === 'A') {
+    predObj.score_a = valInt;
+  } else {
+    predObj.score_b = valInt;
+  }
+  
+  // Automate prediction calculation based on scores
+  if (predObj.score_a !== null && predObj.score_b !== null) {
+    if (predObj.score_a > predObj.score_b) {
+      predObj.prediction = 'A';
+    } else if (predObj.score_a < predObj.score_b) {
+      predObj.prediction = 'B';
+    } else {
+      predObj.prediction = 'D'; // Empate
+    }
+  } else {
+    predObj.prediction = null;
+  }
+  
+  tempPredictions[matchId] = predObj;
+  
+  // Update button visual states dynamically
+  const btnA = document.getElementById(`btn-pred-${matchId}-A`);
+  const btnD = document.getElementById(`btn-pred-${matchId}-D`);
+  const btnB = document.getElementById(`btn-pred-${matchId}-B`);
+  
+  if (btnA) {
+    btnA.classList.remove('selected-a');
+    if (predObj.prediction === 'A') btnA.classList.add('selected-a');
+  }
+  if (btnD) {
+    btnD.classList.remove('selected-d');
+    if (predObj.prediction === 'D') btnD.classList.add('selected-d');
+  }
+  if (btnB) {
+    btnB.classList.remove('selected-b');
+    if (predObj.prediction === 'B') btnB.classList.add('selected-b');
+  }
+};
 
 async function saveKnockoutBets(btn) {
   if (!selectedParticipant) {
@@ -1201,8 +1584,31 @@ async function saveKnockoutBets(btn) {
   const predictionsToSave = [];
   for (const m of knockoutMatches) {
     const pred = tempPredictions[m.id];
-    if (pred && pred !== currentPredictions[m.id]) {
-      predictionsToSave.push({ match_id: m.id, prediction: pred });
+    if (pred) {
+      const curr = currentPredictions[m.id];
+      const hasChanged = !curr || 
+                         (typeof pred === 'object' && typeof curr === 'object' && (pred.score_a !== curr.score_a || pred.score_b !== curr.score_b)) ||
+                         (typeof pred === 'object' && typeof curr !== 'object') || // Switched format
+                         (typeof pred !== 'object' && pred !== curr);
+      
+      if (hasChanged) {
+        if (typeof pred === 'object') {
+          if (!pred.prediction) {
+            showToast('Te falta seleccionar quién gana o empata usando los botones en uno de los pronósticos', 'error');
+            return;
+          }
+          if (pred.prediction !== null) {
+            predictionsToSave.push({ 
+              match_id: m.id, 
+              prediction: pred.prediction,
+              score_a: pred.score_a,
+              score_b: pred.score_b
+            });
+          }
+        } else {
+          predictionsToSave.push({ match_id: m.id, prediction: pred });
+        }
+      }
     }
   }
   
@@ -1236,7 +1642,11 @@ async function saveKnockoutBets(btn) {
     }
     
     for (const p of predictionsToSave) {
-      currentPredictions[p.match_id] = p.prediction;
+      if (p.score_a !== undefined) {
+        currentPredictions[p.match_id] = { prediction: p.prediction, score_a: p.score_a, score_b: p.score_b };
+      } else {
+        currentPredictions[p.match_id] = p.prediction;
+      }
     }
     
     btn.innerHTML = '<span class="btn-text">✅ ¡Guardado!</span>';
@@ -1252,7 +1662,7 @@ async function saveKnockoutBets(btn) {
       confetti({ particleCount: 30, spread: 40, origin: { x, y }, colors: ['#34d399', '#ffffff'] });
     }
     
-    await loadData();
+    // await loadData();
     if (document.getElementById('sectionKnockout').classList.contains('active')) {
        loadBracket();
     }
@@ -1435,30 +1845,55 @@ function renderAdminPanel() {
 function renderAdminMatchCard(match) {
   const r = match.result;
   const isKnockout = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(match.group_name);
+  const score_a_val = (match.result !== null && match.score_a !== null) ? match.score_a : '';
+  const score_b_val = (match.result !== null && match.score_b !== null) ? match.score_b : '';
   
-  return `
-    <div class="admin-match-card">
-      ${match.match_datetime ? `<div class="match-date" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-bottom: 8px;">🕒 ${new Date(match.match_datetime).toLocaleString('es-MX', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>` : ''}
-      <div class="match-teams">
-        <div class="match-team">
-          <img class="team-flag ${r === 'A' ? 'winner-flag' : ''}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-          <span class="team-name">${match.team_a}</span>
+  let resultRowHtml = '';
+  if (isKnockout) {
+    resultRowHtml = `
+      <div style="margin-top: 10px;">
+        <div class="admin-result-row" style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px;">Goles Local</span>
+            <input type="number" class="score-input" id="admin_score_a_${match.id}" value="${score_a_val}" min="0" max="99" 
+                   style="width: 44px; text-align: center; padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-weight: bold; font-family: inherit;"
+                   oninput="checkAdminScoreTie(${match.id})">
+          </div>
+          <span style="font-weight: bold; margin-top: 15px; color: var(--text-muted);">-</span>
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <span style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px;">Goles Visita</span>
+            <input type="number" class="score-input" id="admin_score_b_${match.id}" value="${score_b_val}" min="0" max="99" 
+                   style="width: 44px; text-align: center; padding: 6px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-weight: bold; font-family: inherit;"
+                   oninput="checkAdminScoreTie(${match.id})">
+          </div>
+          <button class="btn btn-primary" onclick="saveAdminScore(${match.id})" style="align-self: flex-end; height: 32px; padding: 0 10px; font-size: 0.8rem; justify-content: center; margin-top: 15px;">
+            Guardar
+          </button>
+          ${r !== null ? `
+          <button class="result-btn clear-btn" onclick="setResult(${match.id}, null)" title="Limpiar resultado" style="align-self: flex-end; height: 32px; background: rgba(239, 68, 68, 0.1); color: var(--red); border-color: rgba(239, 68, 68, 0.2); font-weight: bold; margin-top: 15px;">
+            ↩️
+          </button>
+          ` : ''}
         </div>
-        <span class="match-vs">VS</span>
-        <div class="match-team team-b">
-          <span class="team-name">${match.team_b}</span>
-          <img class="team-flag ${r === 'B' ? 'winner-flag' : ''}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+        
+        <div class="advanced-team-row" id="adv_row_${match.id}" style="display: ${score_a_val !== '' && score_b_val !== '' && parseInt(score_a_val, 10) === parseInt(score_b_val, 10) ? 'flex' : 'none'}; flex-direction: column; align-items: center; margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 8px;">
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; font-weight: bold;">Avanza / Gana en Penales</span>
+          <select id="admin_adv_${match.id}" style="padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; font-size: 0.85rem; font-weight: bold; outline: none; width: 180px;">
+            <option value="A" ${match.advanced_team === 'A' ? 'selected' : ''}>👉 Avanza ${match.team_a}</option>
+            <option value="B" ${match.advanced_team === 'B' ? 'selected' : ''}>👉 Avanza ${match.team_b}</option>
+          </select>
         </div>
       </div>
+    `;
+  } else {
+    resultRowHtml = `
       <div class="admin-result-row">
         <button class="result-btn ${r === 'A' ? 'active-result-a' : ''}" onclick="setResult(${match.id}, 'A')">
           Gana ${match.team_a}
         </button>
-        ${!isKnockout ? `
         <button class="result-btn ${r === 'D' ? 'active-result-d' : ''}" onclick="setResult(${match.id}, 'D')">
           Empate
         </button>
-        ` : ''}
         <button class="result-btn ${r === 'B' ? 'active-result-b' : ''}" onclick="setResult(${match.id}, 'B')">
           Gana ${match.team_b}
         </button>
@@ -1467,15 +1902,102 @@ function renderAdminMatchCard(match) {
           ↩️
         </button>
         ` : ''}
-        ${!isKnockout ? `
         <button class="result-btn clear-btn" onclick="deleteMatch(${match.id}, '${match.team_a}', '${match.team_b}')" title="Eliminar partido permanentemente">
           ✕
         </button>
-        ` : ''}
       </div>
+    `;
+  }
+
+  return `
+    <div class="admin-match-card" id="admin_match_card_${match.id}">
+      <!-- Date hidden -->
+      <div class="match-teams">
+        <div class="match-team">
+          <img class="team-flag ${r === 'A' ? 'winner-flag' : ''}" src="${getFlagUrl(match.flag_a)}" alt="${match.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+          <span class="team-name">${match.team_a}</span>
+        </div>
+        <span class="match-vs">${match.score_a !== null && match.score_b !== null ? `${match.score_a} - ${match.score_b}` : 'VS'}</span>
+        <div class="match-team team-b">
+          <span class="team-name">${match.team_b}</span>
+          <img class="team-flag ${r === 'B' ? 'winner-flag' : ''}" src="${getFlagUrl(match.flag_b)}" alt="${match.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+        </div>
+      </div>
+      ${resultRowHtml}
     </div>
   `;
 }
+
+window.checkAdminScoreTie = function(matchId) {
+  const sa = $(`#admin_score_a_${matchId}`).value;
+  const sb = $(`#admin_score_b_${matchId}`).value;
+  const row = $(`#adv_row_${matchId}`);
+  if (row) {
+    if (sa.trim() !== '' && sb.trim() !== '' && parseInt(sa, 10) === parseInt(sb, 10)) {
+      row.style.display = 'flex';
+    } else {
+      row.style.display = 'none';
+    }
+  }
+};
+
+window.saveAdminScore = async function(matchId) {
+  const saVal = $(`#admin_score_a_${matchId}`).value;
+  const sbVal = $(`#admin_score_b_${matchId}`).value;
+  if (saVal.trim() === '' || sbVal.trim() === '') {
+    showToast('Ingresa ambos marcadores', 'error');
+    return;
+  }
+  const score_a = parseInt(saVal, 10);
+  const score_b = parseInt(sbVal, 10);
+  if (isNaN(score_a) || isNaN(score_b) || score_a < 0 || score_b < 0) {
+    showToast('Marcadores inválidos', 'error');
+    return;
+  }
+  
+  let advanced_team = null;
+  if (score_a === score_b) {
+    advanced_team = $(`#admin_adv_${matchId}`).value;
+  }
+  
+  try {
+    const res = await fetch(`/api/matches/${matchId}/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score_a, score_b, advanced_team })
+    });
+    
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error, 'error');
+      return;
+    }
+    
+    showToast('✅ Resultado guardado', 'success');
+    if (window.confetti && window.celebrationsEnabled !== false) {
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
+    
+    window.skipAdminPanelRender = true;
+    await loadData();
+    await loadBracket();
+    window.skipAdminPanelRender = false;
+    
+    const cardEl = document.getElementById(`admin_match_card_${matchId}`);
+    if (cardEl) {
+      let updatedMatch;
+      for (const group of Object.values(matchesData)) {
+         updatedMatch = group.find(m => m.id === matchId);
+         if (updatedMatch) break;
+      }
+      if (updatedMatch) {
+         cardEl.outerHTML = renderAdminMatchCard(updatedMatch);
+      }
+    }
+  } catch (err) {
+    showToast('Error al guardar resultado', 'error');
+  }
+};
 
 async function setResult(matchId, result) {
   try {
@@ -1495,8 +2017,23 @@ async function setResult(matchId, result) {
     if (result && window.confetti && window.celebrationsEnabled !== false) {
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     }
-    loadData();
-    loadBracket();
+    
+    window.skipAdminPanelRender = true;
+    await loadData();
+    await loadBracket();
+    window.skipAdminPanelRender = false;
+    
+    const cardEl = document.getElementById(`admin_match_card_${matchId}`);
+    if (cardEl) {
+      let updatedMatch;
+      for (const group of Object.values(matchesData)) {
+         updatedMatch = group.find(m => m.id === matchId);
+         if (updatedMatch) break;
+      }
+      if (updatedMatch) {
+         cardEl.outerHTML = renderAdminMatchCard(updatedMatch);
+      }
+    }
   } catch (err) {
     showToast('Error al guardar resultado', 'error');
   }
@@ -1665,7 +2202,7 @@ async function toggleBetsPhase(phase) {
 }
 
 function isKnockoutPhaseLocked(groupName) {
-  if (tournamentPhase === 'groups') return true;
+  if (tournamentPhase !== 'knockout') return true;
   if (groupName === 'R32') return !betsEnabledR32;
   if (groupName === 'R16') return !betsEnabledR16;
   if (groupName === 'QF') return !betsEnabledQF;
@@ -1675,21 +2212,61 @@ function isKnockoutPhaseLocked(groupName) {
   return !betsEnabled;
 }
 
-// ─── Predictions Visibility Control ───────────────────────
+function canViewPredictionsForPhase(phase, participantId) {
+  if (isAdmin) return true;
+  if (selectedParticipant && selectedParticipant.id === participantId) return true;
+  
+  if (phase === 'R32') return showPredictionsR32;
+  if (phase === 'R16') return showPredictionsR16;
+  if (phase === 'QF') return showPredictionsQF;
+  if (phase === 'SF') return showPredictionsSF;
+  if (phase === 'Third') return showPredictionsThird;
+  if (phase === 'Final') return showPredictionsFinal;
+  
+  // For Groups phase, which includes Group A, Group B, etc.
+  return showPredictions; 
+}
+
 function updatePredictionsUI() {
-  const toggle = $('#predictionsToggle');
-  const label = $('#predictionsStatusLabel');
-  const card = document.querySelector('.predictions-control-card');
+  const toggleGroups = $('#predictionsToggle');
+  if (toggleGroups) toggleGroups.checked = showPredictions;
   
-  if (toggle) toggle.checked = showPredictions;
+  if ($('#predictionsToggleR32')) $('#predictionsToggleR32').checked = showPredictionsR32;
+  if ($('#predictionsToggleR16')) $('#predictionsToggleR16').checked = showPredictionsR16;
+  if ($('#predictionsToggleQF')) $('#predictionsToggleQF').checked = showPredictionsQF;
+  if ($('#predictionsToggleSF')) $('#predictionsToggleSF').checked = showPredictionsSF;
+  if ($('#predictionsToggleThird')) $('#predictionsToggleThird').checked = showPredictionsThird;
+  if ($('#predictionsToggleFinal')) $('#predictionsToggleFinal').checked = showPredictionsFinal;
+}
+
+function updateAciertosUI() {
+  const toggle = $('#aciertosToggle');
+  if (toggle) toggle.checked = showAciertos;
   
+  const label = $('#aciertosStatusLabel');
   if (label) {
-    label.textContent = showPredictions ? 'Permitido' : 'Oculto';
-    label.classList.toggle('disabled', !showPredictions);
+    label.textContent = showAciertos ? 'Visible' : 'Oculto';
+    label.classList.toggle('disabled', !showAciertos);
   }
   
+  const card = $('.aciertos-control-card');
   if (card) {
-    card.classList.toggle('predictions-disabled', !showPredictions);
+    card.classList.toggle('predictions-disabled', !showAciertos);
+  }
+}
+
+window.updateHeaderStats = function(stats) {
+  if (!$('#headerPoints')) return;
+  
+  $('#headerPoints').textContent = stats.points;
+  $('#headerRank').textContent = '#' + stats.rank;
+  $('#headerPending').textContent = stats.pending;
+  
+  if (tournamentPhase === 'knockout') {
+    $('#headerAciertosDiv').style.display = 'none';
+  } else {
+    $('#headerAciertosDiv').style.display = 'block';
+    $('#headerAciertos').textContent = stats.aciertos;
   }
 }
 
@@ -1732,8 +2309,9 @@ async function toggleCelebrations() {
   }
 }
 
-async function togglePredictionsVisibility() {
-  const newState = $('#predictionsToggle').checked;
+async function togglePredictionsVisibility(phase = 'groups') {
+  const toggle = $('#predictionsToggle');
+  const newState = toggle.checked;
   
   try {
     const res = await fetch('/api/settings/show_predictions', {
@@ -1750,21 +2328,81 @@ async function togglePredictionsVisibility() {
       if (document.getElementById('sectionKnockout').classList.contains('active')) {
         renderBracket();
       }
-      showToast(newState ? '✅ Visibilidad de votos activada' : '🔒 Visibilidad de votos desactivada', 'success');
+      showToast(newState ? '✅ Votos grupales visibles' : '🔒 Votos grupales ocultos', 'success');
     }
   } catch (err) {
-    showToast('Error al cambiar visibilidad de votos', 'error');
+    showToast('Error al cambiar visibilidad', 'error');
+    toggle.checked = !newState;
+  }
+}
+
+async function togglePredictionsVisibilityPhase(phase) {
+  const toggle = $(`#predictionsToggle${phase}`);
+  const newState = toggle.checked;
+  
+  try {
+    const res = await fetch('/api/settings/show_predictions_phase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase, show: newState })
+    });
+    
+    if (res.ok) {
+      if (phase === 'R32') showPredictionsR32 = newState;
+      else if (phase === 'R16') showPredictionsR16 = newState;
+      else if (phase === 'QF') showPredictionsQF = newState;
+      else if (phase === 'SF') showPredictionsSF = newState;
+      else if (phase === 'Third') showPredictionsThird = newState;
+      else if (phase === 'Final') showPredictionsFinal = newState;
+      
+      updatePredictionsUI();
+      renderLeaderboard();
+      await loadData();
+      if (document.getElementById('sectionKnockout').classList.contains('active')) {
+        renderBracket();
+      }
+      showToast(newState ? `✅ Votos ${phase} visibles` : `🔒 Votos ${phase} ocultos`, 'success');
+    }
+  } catch (err) {
+    showToast('Error al cambiar visibilidad de fase', 'error');
+    toggle.checked = !newState;
+  }
+}
+
+async function toggleAciertosVisibility() {
+  const newState = $('#aciertosToggle').checked;
+  
+  try {
+    const res = await fetch('/api/settings/show_aciertos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ show: newState })
+    });
+    
+    if (res.ok) {
+      showAciertos = newState;
+      updateAciertosUI();
+      renderLeaderboard();
+      showToast(newState ? '✅ Columna de aciertos visible' : '🔒 Columna de aciertos oculta', 'success');
+    }
+  } catch (err) {
+    showToast('Error al cambiar visibilidad de aciertos', 'error');
     // Revert toggle
-    $('#predictionsToggle').checked = !newState;
+    $('#aciertosToggle').checked = !newState;
   }
 }
 
 async function savePoints() {
   const win = parseInt($('#inputPointsWin').value, 10);
   const draw = parseInt($('#inputPointsDraw').value, 10);
+  const koResult = parseInt($('#inputPointsKoResult').value, 10);
+  const koScoreA = parseInt($('#inputPointsKoScoreA').value, 10);
+  const koScoreB = parseInt($('#inputPointsKoScoreB').value, 10);
   
-  if (isNaN(win) || isNaN(draw) || win < 0 || draw < 0) {
-    showToast('Los puntos deben ser números válidos mayores a 0', 'error');
+  if (isNaN(win) || isNaN(draw) || win < 0 || draw < 0 ||
+      isNaN(koResult) || isNaN(koScoreA) || isNaN(koScoreB) ||
+      koResult < 0 || koScoreA < 0 || koScoreB < 0) {
+    showToast('Los puntos deben ser números válidos mayores o iguales a 0', 'error');
     return;
   }
   
@@ -1777,12 +2415,15 @@ async function savePoints() {
     const res = await fetch('/api/settings/points', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ win, draw })
+      body: JSON.stringify({ win, draw, koResult, koScoreA, koScoreB })
     });
     
     if (res.ok) {
       pointsWin = win;
       pointsDraw = draw;
+      pointsKoResult = koResult;
+      pointsKoScoreA = koScoreA;
+      pointsKoScoreB = koScoreB;
       
       btn.innerHTML = '¡Guardado!';
       btn.classList.add('saved');
@@ -1855,9 +2496,18 @@ async function loadParticipantHistory(participantId) {
 }
 
 function handleLeaderboardRowClick(participantId, participantName) {
-  const isClickable = isAdmin || showPredictions || (selectedParticipant && selectedParticipant.id === participantId);
+  const isClickable = isAdmin || 
+                      (selectedParticipant && selectedParticipant.id === participantId) || 
+                      showPredictions || 
+                      showPredictionsR32 || 
+                      showPredictionsR16 || 
+                      showPredictionsQF || 
+                      showPredictionsSF || 
+                      showPredictionsThird || 
+                      showPredictionsFinal;
+                      
   if (!isClickable) {
-    showToast('🔒 El administrador ha deshabilitado la visualización de predicciones de otros.', 'error');
+    showToast('🔒 El administrador ha ocultado todos los votos.', 'error');
     return;
   }
   openHistoryModal(participantId, participantName);
@@ -1901,6 +2551,7 @@ async function openHistoryModal(participantId, participantName) {
 
 let modalActiveRound = null;
 let modalPredictionsCache = [];
+let modalParticipantId = null;
 
 async function renderHistoryToElements(participantId, summaryEl, predsEl) {
   const res = await fetch(`/api/participants/${participantId}/history`);
@@ -1910,6 +2561,7 @@ async function renderHistoryToElements(participantId, summaryEl, predsEl) {
   
   const { predictions, summary } = data;
   modalPredictionsCache = predictions; // Cache predictions for fast updates
+  modalParticipantId = participantId;
   
   const totalWrong = summary.totalPlayed - summary.totalCorrect - (predictions.filter(p => p.result !== null && p.prediction === null).length);
   
@@ -1995,6 +2647,22 @@ window.updateModalPredictionsUI = function(predsEl) {
   let activePreds = [];
   let finishedPreds = [];
   
+  const phaseToCheck = (tournamentPhase === 'groups' || modalActiveRound === 'groups') ? 'groups' : modalActiveRound;
+  
+  if (!canViewPredictionsForPhase(phaseToCheck, modalParticipantId)) {
+    predsEl.innerHTML = html + `
+      <div style="margin-bottom: 12px; color: var(--gold); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+        🔒 Votos Ocultos
+      </div>
+      <div class="history-empty" style="padding: 30px; border-radius: var(--radius); background: rgba(255,255,255,0.02); text-align: center; color: var(--text-muted); font-size: 0.9rem; border: 1px dashed var(--border);">
+        <div style="font-size: 2.5rem; margin-bottom: 10px; opacity: 0.8;">🤫</div>
+        <strong>Votos en Secreto</strong><br>
+        <span style="font-size: 0.8rem; margin-top: 5px; display: inline-block;">El administrador ha ocultado las predicciones de esta fase temporalmente.</span>
+      </div>
+    `;
+    return;
+  }
+  
   if (tournamentPhase === 'groups' || modalActiveRound === 'groups') {
     activePreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name) && p.result === null);
     finishedPreds = predictions.filter(p => !['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(p.group_name) && p.result !== null);
@@ -2054,29 +2722,72 @@ function renderPredictionListHtml(predsList) {
   });
   
   for (const gName of groupNames) {
-    const label = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(gName) ? `Ronda ${gName === 'R16' ? 'Octavos' : gName === 'QF' ? 'Cuartos' : gName === 'SF' ? 'Semis' : gName === 'Third' ? 'Tercer' : gName === 'Final' ? 'Final' : '32'}` : `Grupo ${gName}`;
+    const isKnockout = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'].includes(gName);
+    const label = isKnockout ? `Ronda ${gName === 'R16' ? 'Octavos' : gName === 'QF' ? 'Cuartos' : gName === 'SF' ? 'Semis' : gName === 'Third' ? 'Tercer' : gName === 'Final' ? 'Final' : '32'}` : `Grupo ${gName}`;
     html += `<div class="history-group-label">${label}</div>`;
     
     for (const p of grouped[gName]) {
-      const predText = getPredictionText(p);
+      const predText = getPredictionText(p, isKnockout);
       const statusClass = getStatusClass(p.status);
       const pointsText = p.points_earned > 0 ? `+${p.points_earned} pts` : '';
       
-      html += `
-        <div class="history-item">
-          <div class="history-item-match">
-            <img src="${getFlagUrl(p.flag_a)}" alt="${p.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
-            <span>${truncName(p.team_a)}</span>
-            <span class="vs-sep">vs</span>
-            <span>${truncName(p.team_b)}</span>
-            <img src="${getFlagUrl(p.flag_b)}" alt="${p.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+      let pointsExplHtml = '';
+      if (p.points_earned > 0 && isKnockout) {
+        let expl = '';
+        if (p.status === 'correct_exact') expl = 'Ganador + Marcador';
+        else if (p.status === 'correct') expl = p.points_earned > 1 ? 'Ganador + Extra' : 'Ganador';
+        else if (p.status === 'wrong') expl = 'Extra (Goles)';
+        if (expl) {
+          pointsExplHtml = `<div style="font-size: 0.65rem; color: var(--gold); text-align: right; margin-top: 3px; font-weight: 600;">${expl}</div>`;
+        }
+      }
+
+      if (isKnockout) {
+        const matchScoreHtml = (p.match_score_a !== null && p.match_score_b !== null) 
+          ? `<span class="modern-score-real">${p.match_score_a} - ${p.match_score_b}</span>`
+          : `<span class="modern-score-pending">vs</span>`;
+
+        html += `
+          <div class="history-item modern-history-item">
+            <div class="history-item-match modern-match">
+              <div class="modern-team modern-team-a">
+                <span>${truncName(p.team_a)}</span>
+                <img src="${getFlagUrl(p.flag_a)}" alt="${p.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+              </div>
+              <div class="modern-score-center">
+                ${matchScoreHtml}
+              </div>
+              <div class="modern-team modern-team-b">
+                <img src="${getFlagUrl(p.flag_b)}" alt="${p.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+                <span>${truncName(p.team_b)}</span>
+              </div>
+            </div>
+            <div class="history-item-prediction modern-prediction" style="flex-direction: column; align-items: flex-end; justify-content: center;">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="history-pred-badge ${statusClass}">${predText}</span>
+                <span class="history-points-badge">${pointsText}</span>
+              </div>
+              ${pointsExplHtml}
+            </div>
           </div>
-          <div class="history-item-prediction">
-            <span class="history-pred-badge ${statusClass}">${predText}</span>
-            <span class="history-points-badge">${pointsText}</span>
+        `;
+      } else {
+        html += `
+          <div class="history-item">
+            <div class="history-item-match">
+              <img src="${getFlagUrl(p.flag_a)}" alt="${p.team_a}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+              <span>${truncName(p.team_a)}</span>
+              <span class="vs-sep">vs</span>
+              <span>${truncName(p.team_b)}</span>
+              <img src="${getFlagUrl(p.flag_b)}" alt="${p.team_b}" onerror="this.src='https://flagcdn.com/w40/un.png'">
+            </div>
+            <div class="history-item-prediction">
+              <span class="history-pred-badge ${statusClass}">${predText}</span>
+              <span class="history-points-badge">${pointsText}</span>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
     }
   }
   
@@ -2101,20 +2812,37 @@ window.toggleFinishedHistory = function(btn) {
   }
 };
 
-function getPredictionText(pred) {
+function getPredictionText(pred, isKnockout = false) {
   if (!pred.prediction && pred.result === null) return '⏳ Pendiente';
   if (!pred.prediction) return '⚪ Sin apuesta';
   
   const predLabel = pred.prediction === 'A' ? pred.team_a : pred.prediction === 'B' ? pred.team_b : 'Empate';
   
-  if (pred.result === null) return `🎯 ${predLabel}`;
-  if (pred.status === 'correct' || pred.status === 'correct_draw') return `✅ ${predLabel}`;
-  return `❌ ${predLabel}`;
+  if (isKnockout) {
+    const scoreText = (pred.pred_score_a !== null && pred.pred_score_b !== null) ? ` (${pred.pred_score_a}-${pred.pred_score_b})` : '';
+    
+    if (pred.result === null) return `🎯 Pronóstico: ${predLabel}${scoreText}`;
+    if (pred.status === 'correct_exact') {
+      return `🔥 Marcador Exacto${scoreText}`;
+    }
+    if (pred.status === 'correct' || pred.status === 'correct_draw') return `✅ Acierto${scoreText}`;
+    return `❌ Fallo${scoreText}`;
+  } else {
+    if (pred.result === null) return `🎯 ${predLabel}`;
+    if (pred.status === 'correct_exact') {
+      const scoreText = (pred.pred_score_a !== null && pred.pred_score_b !== null) ? ` (${pred.pred_score_a}-${pred.pred_score_b})` : '';
+      return `🔥 Marcador Exacto ${scoreText}`;
+    }
+    if (pred.status === 'correct' || pred.status === 'correct_draw') return `✅ ${predLabel}`;
+    return `❌ ${predLabel}`;
+  }
 }
 
 function getStatusClass(status) {
   switch(status) {
-    case 'correct': case 'correct_draw': return 'correct';
+    case 'correct_exact':
+    case 'correct':
+    case 'correct_draw': return 'correct';
     case 'wrong': return 'wrong';
     case 'pending': return 'pending';
     case 'no_prediction': return 'no-pred';
@@ -2220,11 +2948,19 @@ function renderTendencias() {
     }
     
     const isTBD = match.team_a === 'A definir' || match.team_b === 'A definir';
-    const cardClass = isTBD ? 'tendencia-card tbd-card' : 'tendencia-card';
+    const hasResult = match.result !== null && match.result !== undefined;
+    
+    let cardClass = 'tendencia-card';
+    if (isTBD) cardClass += ' tbd-card';
+    if (hasResult) cardClass += ' finished-card';
     
     const card = document.createElement('div');
     card.className = cardClass;
     if (isTBD) card.style.opacity = '0.5';
+    if (hasResult) {
+      card.style.opacity = '0.5';
+      card.style.filter = 'grayscale(1)';
+    }
     
     card.innerHTML = `
       <div class="tendencia-header">
@@ -2422,6 +3158,22 @@ async function loadFunFacts() {
     const res = await fetch('/api/fun-facts');
     funFactsData = await res.json();
     renderAdminFacts();
+    
+    // Check if there are new facts since the last seen count
+    const stored = localStorage.getItem('last_seen_fact_count');
+    const btnVirus = document.getElementById('btnVirus');
+    if (btnVirus) {
+      if (stored === null) {
+        localStorage.setItem('last_seen_fact_count', funFactsData.length);
+      } else {
+        const lastSeenCount = parseInt(stored, 10);
+        if (funFactsData.length > lastSeenCount) {
+          btnVirus.classList.add('has-new');
+        } else {
+          btnVirus.classList.remove('has-new');
+        }
+      }
+    }
   } catch (err) {
     console.error('Error loading fun facts:', err);
   }
@@ -2432,6 +3184,13 @@ async function openVirusModal() {
   const container = $('#virusFactsContainer');
   
   modal.classList.add('show');
+  
+  // Clear notification badge
+  const btnVirus = document.getElementById('btnVirus');
+  if (btnVirus) {
+    btnVirus.classList.remove('has-new');
+  }
+  
   container.innerHTML = `
     <div class="empty-state">
       <span class="empty-icon">⏳</span>
@@ -2442,6 +3201,9 @@ async function openVirusModal() {
   try {
     const res = await fetch('/api/fun-facts');
     const facts = await res.json();
+    
+    // Save new count to local storage
+    localStorage.setItem('last_seen_fact_count', facts.length);
     
     if (facts.length === 0) {
       container.innerHTML = `
@@ -2462,6 +3224,7 @@ async function openVirusModal() {
       card.innerHTML = `
         <span class="virus-fact-number">${facts.length - i}</span>
         <span class="virus-fact-text">${escapeHtml(fact.text)}</span>
+        ${fact.image_url ? `<img src="${fact.image_url}" alt="Dato curioso" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">` : ''}
       `;
       container.appendChild(card);
     });
@@ -2477,6 +3240,7 @@ async function openVirusModal() {
 
 async function addFunFact() {
   const input = $('#virusFactInput');
+  const fileInput = $('#virusImageInput');
   const text = input.value.trim();
   
   if (!text) {
@@ -2484,11 +3248,16 @@ async function addFunFact() {
     return;
   }
   
+  const formData = new FormData();
+  formData.append('text', text);
+  if (fileInput && fileInput.files[0]) {
+    formData.append('image', fileInput.files[0]);
+  }
+  
   try {
     const res = await fetch('/api/fun-facts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
+      body: formData
     });
     
     if (!res.ok) {
@@ -2498,6 +3267,7 @@ async function addFunFact() {
     }
     
     input.value = '';
+    if (fileInput) fileInput.value = '';
     showToast('🦠 Dato curioso agregado', 'success');
     loadFunFacts();
   } catch (err) {
@@ -2528,7 +3298,7 @@ function renderAdminFacts() {
   
   container.innerHTML = funFactsData.map(f => `
     <div class="admin-fact-item">
-      <span class="fact-text">${escapeHtml(f.text)}</span>
+      <span class="fact-text">${f.image_url ? '🖼️ ' : ''}${escapeHtml(f.text)}</span>
       <button class="fact-delete" onclick="deleteFunFact(${f.id})" title="Eliminar">🗑️</button>
     </div>
   `).join('');
@@ -2845,15 +3615,7 @@ function createBracketMatch(match, round) {
   numBadge.textContent = `#${match.bracket_position}`;
   card.appendChild(numBadge);
   
-  // Date
-  if (match.match_datetime) {
-    const dateEl = document.createElement('div');
-    dateEl.className = 'bracket-match-date';
-    dateEl.textContent = new Date(match.match_datetime).toLocaleString('es-MX', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-    });
-    card.appendChild(dateEl);
-  }
+  // Date hidden per user request
   
   // Team A slot
   card.appendChild(createTeamSlot(match, 'A'));
@@ -2879,6 +3641,7 @@ function createTeamSlot(match, slot) {
     el.classList.add(isWinner ? 'winner' : 'loser');
   }
   
+
   // Flag
   const flagImg = document.createElement('img');
   flagImg.className = 'team-flag-small';
@@ -2984,8 +3747,11 @@ function createTeamSlot(match, slot) {
     }
   }
   
-  // Hover Tooltip for voters (only if show_predictions is enabled and not TBD)
-  if (window.allGlobalPredictions && window.allGlobalPredictions.enabled && !isTBD) {
+  // Hover Tooltip for voters (only if show_predictions is enabled for this phase and not TBD)
+  const phaseVis = window.allGlobalPredictions && window.allGlobalPredictions.phaseVisibility;
+  const matchRound = match.group_name; // e.g. 'R32', 'R16', etc.
+  const isPhaseVisible = isAdmin || (phaseVis && (phaseVis[matchRound] !== false));
+  if (window.allGlobalPredictions && window.allGlobalPredictions.enabled && !isTBD && isPhaseVisible) {
     
     const showGhostTooltip = () => {
       // Remove any existing tooltip first
@@ -3079,10 +3845,18 @@ function createTeamSlot(match, slot) {
 function openTeamSelector(matchId, slot, matchCard) {
   // Remove any existing selector
   const existing = matchCard.querySelector('.bracket-team-select');
-  if (existing) { existing.remove(); return; }
+  if (existing) { existing.remove(); matchCard.style.zIndex = ''; return; }
+  
+  const oldZIndex = matchCard.style.zIndex;
+  matchCard.style.zIndex = '999';
   
   const dropdown = document.createElement('div');
   dropdown.className = 'bracket-team-select';
+  
+  const cleanup = () => {
+    dropdown.remove();
+    matchCard.style.zIndex = oldZIndex;
+  };
   
   // Clear option
   const clearOpt = document.createElement('div');
@@ -3090,7 +3864,7 @@ function openTeamSelector(matchId, slot, matchCard) {
   clearOpt.textContent = '🧹 Limpiar (A definir)';
   clearOpt.addEventListener('click', () => {
     updateKnockoutTeam(matchId, slot, 'A definir', 'un');
-    dropdown.remove();
+    cleanup();
   });
   dropdown.appendChild(clearOpt);
   
@@ -3110,7 +3884,7 @@ function openTeamSelector(matchId, slot, matchCard) {
     
     opt.addEventListener('click', () => {
       updateKnockoutTeam(matchId, slot, team.name, team.flag);
-      dropdown.remove();
+      cleanup();
     });
     
     dropdown.appendChild(opt);
@@ -3122,7 +3896,7 @@ function openTeamSelector(matchId, slot, matchCard) {
   setTimeout(() => {
     const closeHandler = (e) => {
       if (!dropdown.contains(e.target)) {
-        dropdown.remove();
+        cleanup();
         document.removeEventListener('click', closeHandler);
       }
     };
@@ -3172,7 +3946,7 @@ function setupKnockoutTabs() {
 async function advanceTournamentPhase(e) {
   if (e) e.preventDefault();
   
-  if (!confirm('¿Estás seguro de terminar la Fase de Grupos y avanzar a Eliminatorias? Esto seleccionará a los 32 mejores equipos automáticamente y abrirá el bracket.')) {
+  if (!confirm('¿Estás seguro de habilitar las Eliminatorias? Esto abrirá las pestañas de eliminatorias para que los participantes empiecen a llenar sus pronósticos. La fase de grupos seguirá visible.')) {
     return;
   }
   
@@ -3186,7 +3960,7 @@ async function advanceTournamentPhase(e) {
     const data = await res.json();
     
     if (res.ok) {
-      showToast(`✅ Eliminatorias iniciadas. Se clasificaron ${data.count} equipos.`, 'success');
+      showToast('✅ ¡Eliminatorias habilitadas! Los participantes ya pueden empezar a llenar sus pronósticos de eliminación.', 'success');
       
       // 🎉 Fire confetti
       if (window.confetti && window.celebrationsEnabled !== false) {
@@ -3199,43 +3973,44 @@ async function advanceTournamentPhase(e) {
         }());
       }
       
-      // Populate classified modal
-      const grid = $('#classifiedGrid');
-      if (grid && data.groups) {
-        grid.innerHTML = '';
-        const groupKeys = Object.keys(data.groups).sort();
-        
-        for (const g of groupKeys) {
-          const teams = data.groups[g];
-          const groupCard = document.createElement('div');
-          groupCard.className = 'classified-group-card';
-          
-          let teamsHtml = '';
-          teams.forEach((t, i) => {
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-            teamsHtml += `
-              <div class="classified-team-item">
-                <span class="classified-medal">${medal}</span>
-                <img src="${getFlagUrl(t.flag)}" alt="${t.name}">
-                <span>${t.name}</span>
-              </div>
-            `;
-          });
-          
-          groupCard.innerHTML = `
-            <div class="classified-group-title">Grupo ${g}</div>
-            ${teamsHtml}
-          `;
-          grid.appendChild(groupCard);
-        }
-      }
-      
-      // Show modal
-      $('#knockoutStartModal').classList.add('show');
-      
       await loadData(); // reload everything to get new phase and bracket
     } else {
       showToast(data.error || 'Error al iniciar eliminatorias', 'error');
+    }
+  } catch (err) {
+    showToast('Error de red', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+// ─── Reset de Puntos ─────────────────────────────────────────
+async function resetPoints(e) {
+  if (e) e.preventDefault();
+  
+  if (!confirm('⚠️ ATENCIÓN: Esto borrará TODAS las predicciones de la fase de grupos de todos los participantes y sus puntos bajarán a 0.\n\n¿Estás seguro?')) {
+    return;
+  }
+  
+  if (!confirm('🔴 ÚLTIMA CONFIRMACIÓN: Esta acción es IRREVERSIBLE. Las apuestas de la fase de grupos se perderán para siempre.\n\n¿Confirmas que deseas continuar?')) {
+    return;
+  }
+  
+  const btn = $('#btnResetPoints');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner">⏳ Reseteando...</span>';
+  
+  try {
+    const res = await fetch('/api/admin/reset-points', { method: 'POST' });
+    
+    if (res.ok) {
+      showToast('🔄 ¡Puntos reseteados! Todas las predicciones de grupo han sido eliminadas. Los participantes empiezan de 0.', 'success');
+      await loadData();
+    } else {
+      const data = await res.json();
+      showToast(data.error || 'Error al resetear puntos', 'error');
     }
   } catch (err) {
     showToast('Error de red', 'error');
@@ -3253,8 +4028,10 @@ document.addEventListener('DOMContentLoaded', () => {
     $$('.tab').forEach(t => t.classList.remove('active'));
     $$('.tab-content').forEach(c => c.classList.remove('active'));
     
-    $('#tabGrupos').classList.add('active');
-    $('#sectionGrupos').classList.add('active');
+    const tab = $('#tabGroups');
+    const section = $('#sectionGroups');
+    if (tab) tab.classList.add('active');
+    if (section) section.classList.add('active');
   };
   
   if ($('#btnClassifiedClose')) $('#btnClassifiedClose').addEventListener('click', closeClassified);
@@ -3281,8 +4058,10 @@ async function resetTournamentPhase(e) {
       $$('.tab').forEach(t => t.classList.remove('active'));
       $$('.tab-content').forEach(c => c.classList.remove('active'));
       
-      $('#tabGrupos').classList.add('active');
-      $('#sectionGrupos').classList.add('active');
+      const tab = $('#tabGroups');
+      const section = $('#sectionGroups');
+      if (tab) tab.classList.add('active');
+      if (section) section.classList.add('active');
       
       // Clear in-memory predictions
       currentPredictions = {};
@@ -3511,6 +4290,9 @@ function triggerFullscreenCelebration(match) {
 
 async function pollMatchUpdates() {
   try {
+    // Also load fun facts to update the notification dot if needed
+    await loadFunFacts();
+
     const res = await fetch('/api/matches/all');
     if (!res.ok) return;
     const newMatchesFlat = await res.json();
@@ -3539,6 +4321,49 @@ async function pollMatchUpdates() {
 
 // Start polling for real-time match completions every 8 seconds
 setInterval(pollMatchUpdates, 8000);
+
+// Sync settings (visibility toggles, etc.) every 10 seconds so all clients stay up to date
+async function pollSettingsSync() {
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) return;
+    const settings = await res.json();
+
+    const changed = 
+      showPredictions !== (settings.showPredictions !== undefined ? settings.showPredictions : true) ||
+      showPredictionsR32 !== (settings.showPredictionsR32 !== undefined ? settings.showPredictionsR32 : true) ||
+      showPredictionsR16 !== (settings.showPredictionsR16 !== undefined ? settings.showPredictionsR16 : true) ||
+      showPredictionsQF !== (settings.showPredictionsQF !== undefined ? settings.showPredictionsQF : true) ||
+      showPredictionsSF !== (settings.showPredictionsSF !== undefined ? settings.showPredictionsSF : true) ||
+      showPredictionsThird !== (settings.showPredictionsThird !== undefined ? settings.showPredictionsThird : true) ||
+      showPredictionsFinal !== (settings.showPredictionsFinal !== undefined ? settings.showPredictionsFinal : true) ||
+      showAciertos !== (settings.showAciertos !== undefined ? settings.showAciertos : true);
+
+    if (changed) {
+      showPredictions = settings.showPredictions !== undefined ? settings.showPredictions : true;
+      showPredictionsR32 = settings.showPredictionsR32 !== undefined ? settings.showPredictionsR32 : true;
+      showPredictionsR16 = settings.showPredictionsR16 !== undefined ? settings.showPredictionsR16 : true;
+      showPredictionsQF = settings.showPredictionsQF !== undefined ? settings.showPredictionsQF : true;
+      showPredictionsSF = settings.showPredictionsSF !== undefined ? settings.showPredictionsSF : true;
+      showPredictionsThird = settings.showPredictionsThird !== undefined ? settings.showPredictionsThird : true;
+      showPredictionsFinal = settings.showPredictionsFinal !== undefined ? settings.showPredictionsFinal : true;
+      showAciertos = settings.showAciertos !== undefined ? settings.showAciertos : true;
+      
+      updatePredictionsUI();
+      updateAciertosUI();
+      renderLeaderboard();
+      
+      // Reload predictions data so tooltips respect new settings
+      const allPredsRes = await fetch('/api/predictions/all');
+      if (allPredsRes.ok) {
+        window.allGlobalPredictions = await allPredsRes.json();
+      }
+    }
+  } catch (err) {
+    // Silent fail - settings sync is non-critical
+  }
+}
+setInterval(pollSettingsSync, 10000);
 
 // ─── Excel Report Export ──────────────────────────────────────
 window.downloadCSVReport = async function() {
@@ -3656,7 +4481,7 @@ window.downloadPhasePDF = async function() {
       const groupDisplay = currentPhase === 'knockout' ? (roundNameMap[groupName] || groupName) : `GRUPO ${groupName}`;
       doc.text(`Quinela Mundial 2026 - ${phaseTitle} : ${groupDisplay}`, 14, 15);
       
-      const head = [['Participante', 'Aciertos', 'Puntos']];
+      const head = currentPhase === 'knockout' ? [['Participante', 'Puntos']] : [['Participante', 'Aciertos', 'Puntos']];
       for (const m of gMatches) {
         const shortA = m.team_a.substring(0, 3).toUpperCase();
         const shortB = m.team_b.substring(0, 3).toUpperCase();
@@ -3674,7 +4499,7 @@ window.downloadPhasePDF = async function() {
       
       for (const p of sortedParticipants) {
         const stats = calcGroupPoints(p.id, gMatches);
-        const rowData = [p.name, stats.aci.toString(), stats.pts.toString()];
+        const rowData = currentPhase === 'knockout' ? [p.name, stats.pts.toString()] : [p.name, stats.aci.toString(), stats.pts.toString()];
         
         for (const m of gMatches) {
           const pred = predMap[p.id]?.[m.id];
@@ -3917,6 +4742,16 @@ const AppTour = {
     dialog.style.top = dTop + 'px';
     dialog.style.left = dLeft + 'px';
   }
+};
+
+window.unlockGroup = function(groupName) {
+  unlockedGroups[groupName] = true;
+  renderGroups();
+};
+
+window.unlockPrediction = function(matchId) {
+  unlockedMatches[matchId] = true;
+  renderGroups();
 };
 
 // Start the tour initializer after all DOM loads

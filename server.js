@@ -63,6 +63,8 @@ db.exec(`
     match_date TEXT DEFAULT '',
     match_datetime TEXT,
     result TEXT DEFAULT NULL,
+    score_a INTEGER DEFAULT NULL,
+    score_b INTEGER DEFAULT NULL,
     bracket_position INTEGER DEFAULT NULL
   );
 
@@ -71,6 +73,8 @@ db.exec(`
     participant_id INTEGER NOT NULL,
     match_id INTEGER NOT NULL,
     prediction TEXT NOT NULL CHECK(prediction IN ('A', 'B', 'D')),
+    score_a INTEGER DEFAULT NULL,
+    score_b INTEGER DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (participant_id) REFERENCES participants(id),
     FOREIGN KEY (match_id) REFERENCES matches(id),
@@ -93,8 +97,22 @@ db.exec(`
   INSERT OR IGNORE INTO settings (key, value) VALUES ('celebrations_enabled', 'true');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('points_win', '3');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('points_draw', '1');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('points_ko_result', '2');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('points_ko_score_a', '1');
+  INSERT OR IGNORE INTO settings (key, value) VALUES ('points_ko_score_b', '1');
   INSERT OR IGNORE INTO settings (key, value) VALUES ('tournament_phase', 'groups');
 `);
+
+// Migration for existing databases to apply new default rules
+try {
+  const exact = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_exact_bonus'").get();
+  if (exact && exact.value === '2') {
+    db.prepare("UPDATE settings SET value = '3' WHERE key = 'points_ko_exact_bonus'").run();
+  }
+} catch (e) {
+  // ignore
+}
+
 
 // Add bracket_position column for existing databases
 try {
@@ -103,12 +121,44 @@ try {
   // Column already exists, ignore
 }
 
+// Add score_a and score_b columns for existing databases
+try {
+  db.prepare("ALTER TABLE matches ADD COLUMN score_a INTEGER DEFAULT NULL").run();
+  db.prepare("ALTER TABLE matches ADD COLUMN score_b INTEGER DEFAULT NULL").run();
+} catch (e) {
+  // Columns already exist, ignore
+}
+
+try {
+  db.prepare("ALTER TABLE predictions ADD COLUMN score_a INTEGER DEFAULT NULL").run();
+  db.prepare("ALTER TABLE predictions ADD COLUMN score_b INTEGER DEFAULT NULL").run();
+} catch (e) {
+  // Columns already exist, ignore
+}
+
 // Add profile columns for existing databases
 try {
   db.prepare("ALTER TABLE participants ADD COLUMN nickname TEXT DEFAULT NULL").run();
 } catch (e) { /* already exists */ }
 try {
   db.prepare("ALTER TABLE participants ADD COLUMN avatar TEXT DEFAULT NULL").run();
+} catch (e) { /* already exists */ }
+
+// Add score columns for knockout phase
+try {
+  db.prepare("ALTER TABLE matches ADD COLUMN score_a INTEGER DEFAULT NULL").run();
+} catch (e) { /* already exists */ }
+try {
+  db.prepare("ALTER TABLE matches ADD COLUMN score_b INTEGER DEFAULT NULL").run();
+} catch (e) { /* already exists */ }
+try {
+  db.prepare("ALTER TABLE predictions ADD COLUMN score_a INTEGER DEFAULT NULL").run();
+} catch (e) { /* already exists */ }
+try {
+  db.prepare("ALTER TABLE predictions ADD COLUMN score_b INTEGER DEFAULT NULL").run();
+} catch (e) { /* already exists */ }
+try {
+  db.prepare("ALTER TABLE matches ADD COLUMN advanced_team TEXT DEFAULT NULL").run();
 } catch (e) { /* already exists */ }
 
 // ─── Avatar upload directory ─────────────────────────────────
@@ -359,28 +409,61 @@ app.get('/api/matches/all', (req, res) => {
 app.get('/api/participants', (req, res) => {
   const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
   const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+  const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
+  const pointsKoScoreARow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_a'").get();
+  const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
   const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
   
   const ptsWin = pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3;
   const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
+  const ptsKoResult = pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2;
+  const ptsKoScoreA = pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1;
+  const ptsKoScoreB = pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1;
   const currentPhase = phaseRow ? phaseRow.value : 'groups';
 
-  let matchFilter = "m.group_name NOT IN ('R32','R16','QF','SF','Third','Final', 'Prueba')";
-  if (currentPhase === 'knockout') {
-    matchFilter = "m.group_name IN ('R32','R16','QF','SF','Third','Final')";
-  }
+  const matchFilter = "m.group_name != 'Prueba'";
+
+  const pointsCalcSql = `
+    COALESCE(SUM(
+      CASE 
+        WHEN m.result IS NOT NULL THEN
+          CASE 
+            WHEN m.group_name IN ('R32','R16','QF','SF','Third','Final') THEN
+              (CASE WHEN pr.prediction = m.result THEN ${ptsKoResult} ELSE 0 END) +
+              (CASE WHEN pr.score_a = m.score_a AND pr.score_a IS NOT NULL AND m.score_a IS NOT NULL THEN ${ptsKoScoreA} ELSE 0 END) +
+              (CASE WHEN pr.score_b = m.score_b AND pr.score_b IS NOT NULL AND m.score_b IS NOT NULL THEN ${ptsKoScoreB} ELSE 0 END)
+            ELSE
+              (CASE 
+                WHEN pr.prediction = m.result AND m.result = 'D' THEN ${ptsDraw}
+                WHEN pr.prediction = m.result THEN ${ptsWin}
+                ELSE 0
+              END)
+          END
+        ELSE 0
+      END
+    ), 0) as points
+  `;
+
+
+  // For knockouts, count as "acierto" when they guess the winner/draw of 90 min (same as group stage)
+  const aciertosCalcSql = `COUNT(CASE WHEN m.result IS NOT NULL AND pr.prediction = m.result THEN 1 END) as aciertos`;
 
   const participants = db.prepare(`
     SELECT p.id, p.name, p.nickname, p.avatar,
-      COALESCE(SUM(
-        CASE 
-          WHEN m.result IS NOT NULL AND pr.prediction = m.result AND m.result = 'D' THEN ${ptsDraw}
-          WHEN m.result IS NOT NULL AND pr.prediction = m.result THEN ${ptsWin}
-          ELSE 0
-        END
-      ), 0) as points,
-      COUNT(CASE WHEN m.result IS NOT NULL AND pr.prediction = m.result THEN 1 END) as aciertos,
-      COUNT(m.id) as total_predictions
+      ${pointsCalcSql},
+      ${aciertosCalcSql},
+      COUNT(m.id) as total_predictions,
+      (
+        SELECT COUNT(*)
+        FROM matches m2
+        WHERE ${matchFilter.replace(/m\./g, 'm2.')}
+          AND m2.result IS NULL
+          AND m2.team_a != 'A definir' AND m2.team_b != 'A definir'
+          AND NOT EXISTS (
+            SELECT 1 FROM predictions pr2 
+            WHERE pr2.match_id = m2.id AND pr2.participant_id = p.id AND pr2.prediction IS NOT NULL
+          )
+      ) as pending_predictions
     FROM participants p
     LEFT JOIN predictions pr ON p.id = pr.participant_id
     LEFT JOIN matches m ON pr.match_id = m.id AND ${matchFilter}
@@ -482,11 +565,31 @@ app.put('/api/participants/:id/password', (req, res) => {
   }
 });
 
-// Get all predictions globally (respects show_predictions setting)
+// Get all predictions globally (respects show_predictions setting per phase)
 app.get('/api/predictions/all', (req, res) => {
-  const showPredictions = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
-  if (showPredictions && showPredictions.value === 'false') {
-    return res.json({ enabled: false, data: [] });
+  // Gather per-phase visibility settings
+  const showGroups = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
+  const showR32 = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_R32'").get();
+  const showR16 = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_R16'").get();
+  const showQF = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_QF'").get();
+  const showSF = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_SF'").get();
+  const showThird = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_Third'").get();
+  const showFinal = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_Final'").get();
+  
+  const phaseVisibility = {
+    groups: showGroups ? showGroups.value === 'true' : true,
+    R32: showR32 ? showR32.value === 'true' : true,
+    R16: showR16 ? showR16.value === 'true' : true,
+    QF: showQF ? showQF.value === 'true' : true,
+    SF: showSF ? showSF.value === 'true' : true,
+    Third: showThird ? showThird.value === 'true' : true,
+    Final: showFinal ? showFinal.value === 'true' : true
+  };
+  
+  // If ALL phases are hidden, return empty
+  const anyVisible = Object.values(phaseVisibility).some(v => v);
+  if (!anyVisible) {
+    return res.json({ enabled: false, data: [], phaseVisibility });
   }
   
   const predictions = db.prepare(`
@@ -495,27 +598,36 @@ app.get('/api/predictions/all', (req, res) => {
     JOIN participants p ON pr.participant_id = p.id
   `).all();
   
-  res.json({ enabled: true, data: predictions });
+  res.json({ enabled: true, data: predictions, phaseVisibility });
 });
 
 // Get predictions for a participant
 app.get('/api/predictions/:participantId', (req, res) => {
   const predictions = db.prepare(
-    'SELECT match_id, prediction FROM predictions WHERE participant_id = ?'
+    'SELECT match_id, prediction, score_a, score_b FROM predictions WHERE participant_id = ?'
   ).all(req.params.participantId);
   
   const map = {};
   for (const p of predictions) {
-    map[p.match_id] = p.prediction;
+    if (p.score_a !== null && p.score_b !== null) {
+      map[p.match_id] = { prediction: p.prediction, score_a: p.score_a, score_b: p.score_b };
+    } else {
+      map[p.match_id] = p.prediction;
+    }
   }
   res.json(map);
 });
 
 // Save prediction
 app.post('/api/predictions', (req, res) => {
-  const { participant_id, match_id, prediction } = req.body;
+  const { participant_id, match_id, prediction, score_a, score_b } = req.body;
   
-  if (!['A', 'B', 'D'].includes(prediction)) {
+  let predVal = prediction;
+  if (score_a !== undefined && score_a !== null && score_b !== undefined && score_b !== null) {
+    predVal = parseInt(score_a, 10) > parseInt(score_b, 10) ? 'A' : (parseInt(score_a, 10) < parseInt(score_b, 10) ? 'B' : 'D');
+  }
+  
+  if (!['A', 'B', 'D'].includes(predVal)) {
     return res.status(400).json({ error: 'Predicción inválida' });
   }
 
@@ -551,11 +663,19 @@ app.post('/api/predictions', (req, res) => {
 
   try {
     db.prepare(`
-      INSERT INTO predictions (participant_id, match_id, prediction) 
-      VALUES (?, ?, ?)
+      INSERT INTO predictions (participant_id, match_id, prediction, score_a, score_b) 
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(participant_id, match_id) 
-      DO UPDATE SET prediction = excluded.prediction
-    `).run(participant_id, match_id, prediction);
+      DO UPDATE SET prediction = excluded.prediction,
+                    score_a = excluded.score_a,
+                    score_b = excluded.score_b
+    `).run(
+      participant_id, 
+      match_id, 
+      predVal, 
+      (score_a !== undefined && score_a !== null) ? parseInt(score_a, 10) : null,
+      (score_b !== undefined && score_b !== null) ? parseInt(score_b, 10) : null
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -572,10 +692,12 @@ app.post('/api/predictions/batch', (req, res) => {
 
   const batchTransaction = db.transaction(() => {
     const insertPrediction = db.prepare(`
-      INSERT INTO predictions (participant_id, match_id, prediction) 
-      VALUES (?, ?, ?)
+      INSERT INTO predictions (participant_id, match_id, prediction, score_a, score_b) 
+      VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(participant_id, match_id) 
-      DO UPDATE SET prediction = excluded.prediction
+      DO UPDATE SET prediction = excluded.prediction,
+                    score_a = excluded.score_a,
+                    score_b = excluded.score_b
     `);
 
     const getMatch = db.prepare('SELECT group_name, result FROM matches WHERE id = ?');
@@ -584,9 +706,15 @@ app.post('/api/predictions/batch', (req, res) => {
     const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
 
     for (const p of predictions) {
-      const { match_id, prediction } = p;
-      if (!['A', 'B', 'D'].includes(prediction)) {
-        throw new Error('Predicción inválida: ' + prediction);
+      const { match_id, prediction, score_a, score_b } = p;
+      
+      let predVal = prediction;
+      if (score_a !== undefined && score_a !== null && score_b !== undefined && score_b !== null) {
+        predVal = parseInt(score_a, 10) > parseInt(score_b, 10) ? 'A' : (parseInt(score_a, 10) < parseInt(score_b, 10) ? 'B' : 'D');
+      }
+
+      if (!['A', 'B', 'D'].includes(predVal)) {
+        throw new Error('Predicción inválida: ' + predVal);
       }
 
       // Check if match already has a result
@@ -616,7 +744,13 @@ app.post('/api/predictions/batch', (req, res) => {
         }
       }
 
-      insertPrediction.run(participant_id, match_id, prediction);
+      insertPrediction.run(
+        participant_id, 
+        match_id, 
+        predVal, 
+        (score_a !== undefined && score_a !== null) ? parseInt(score_a, 10) : null,
+        (score_b !== undefined && score_b !== null) ? parseInt(score_b, 10) : null
+      );
     }
   });
 
@@ -642,15 +776,22 @@ function advanceWinner(matchId) {
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!match || !match.result || !match.bracket_position) return;
   
-  if (match.result === 'D') return; // Draws in knockout shouldn't auto-advance
+  let advancingSide = null;
+  if (match.result === 'A' || match.result === 'B') {
+    advancingSide = match.result;
+  } else if (match.result === 'D' && (match.advanced_team === 'A' || match.advanced_team === 'B')) {
+    advancingSide = match.advanced_team;
+  }
+  
+  if (!advancingSide) return; // Nobody advances (e.g. draw and no advanced team specified yet)
   
   // Special logic for Semifinals
   if (match.group_name === 'SF') {
-    const winnerTeam = match.result === 'A' ? match.team_a : match.team_b;
-    const winnerFlag = match.result === 'A' ? match.flag_a : match.flag_b;
+    const winnerTeam = advancingSide === 'A' ? match.team_a : match.team_b;
+    const winnerFlag = advancingSide === 'A' ? match.flag_a : match.flag_b;
     
-    const loserTeam = match.result === 'A' ? match.team_b : match.team_a;
-    const loserFlag = match.result === 'A' ? match.flag_b : match.flag_a;
+    const loserTeam = advancingSide === 'A' ? match.team_b : match.team_a;
+    const loserFlag = advancingSide === 'A' ? match.flag_b : match.flag_a;
     
     const slot = (match.bracket_position === 1) ? 'A' : 'B';
     
@@ -679,8 +820,8 @@ function advanceWinner(matchId) {
   const nextRound = getNextRound(match.group_name);
   if (!nextRound) return;
   
-  const winnerTeam = match.result === 'A' ? match.team_a : match.team_b;
-  const winnerFlag = match.result === 'A' ? match.flag_a : match.flag_b;
+  const winnerTeam = advancingSide === 'A' ? match.team_a : match.team_b;
+  const winnerFlag = advancingSide === 'A' ? match.flag_a : match.flag_b;
   
   const pos = match.bracket_position;
   const nextPos = Math.ceil(pos / 2);
@@ -699,16 +840,41 @@ function advanceWinner(matchId) {
 // Admin: Set match result
 app.post('/api/matches/:id/result', (req, res) => {
   try {
-    const { result } = req.body;
+    const { result, score_a, score_b, advanced_team } = req.body;
     
-    if (!['A', 'B', 'D', null].includes(result)) {
+    let resVal = result;
+    let finalScoreA = (score_a !== undefined && score_a !== null) ? parseInt(score_a, 10) : null;
+    let finalScoreB = (score_b !== undefined && score_b !== null) ? parseInt(score_b, 10) : null;
+
+    if (finalScoreA !== null && finalScoreB !== null) {
+      resVal = finalScoreA > finalScoreB ? 'A' : (finalScoreA < finalScoreB ? 'B' : 'D');
+    }
+
+    let finalAdvancedTeam = (advanced_team !== undefined && advanced_team !== null) ? advanced_team : null;
+    if (resVal === 'A') {
+      finalAdvancedTeam = 'A';
+    } else if (resVal === 'B') {
+      finalAdvancedTeam = 'B';
+    } else if (resVal === null) {
+      finalAdvancedTeam = null;
+      finalScoreA = null;
+      finalScoreB = null;
+    }
+    
+    if (!['A', 'B', 'D', null].includes(resVal)) {
       return res.status(400).json({ error: 'Resultado inválido' });
     }
 
-    db.prepare('UPDATE matches SET result = ? WHERE id = ?').run(result, req.params.id);
+    db.prepare('UPDATE matches SET result = ?, score_a = ?, score_b = ?, advanced_team = ? WHERE id = ?').run(
+      resVal, 
+      finalScoreA, 
+      finalScoreB, 
+      finalAdvancedTeam,
+      req.params.id
+    );
     
-    // If this is a knockout match with a definitive result, advance winner
-    if (result && result !== 'D') {
+    // If this is a knockout match, advance winner
+    if (resVal) {
       advanceWinner(parseInt(req.params.id));
     }
     
@@ -986,75 +1152,38 @@ app.get('/api/stats', (req, res) => {
 // ─── Admin: Start Knockout Phase ─────────────────────────────
 app.post('/api/admin/start-knockout', (req, res) => {
   try {
-    // 1. Update setting
+    // Only update the tournament phase setting - does NOT close groups or auto-fill bracket
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('tournament_phase', 'knockout')").run();
-
-    // 2. Auto-fill R32 if they are currently "A definir"
-    // Get all group matches with a result
-    const groupMatches = db.prepare("SELECT * FROM matches WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final','Prueba') AND result IS NOT NULL").all();
-
-    const teamStats = {};
-    groupMatches.forEach(m => {
-      if (!teamStats[m.team_a]) teamStats[m.team_a] = { name: m.team_a, flag: m.flag_a, points: 0, group: m.group_name };
-      if (!teamStats[m.team_b]) teamStats[m.team_b] = { name: m.team_b, flag: m.flag_b, points: 0, group: m.group_name };
-
-      if (m.result === 'A') teamStats[m.team_a].points += 3;
-      else if (m.result === 'B') teamStats[m.team_b].points += 3;
-      else if (m.result === 'D') {
-        teamStats[m.team_a].points += 1;
-        teamStats[m.team_b].points += 1;
-      }
-    });
-
-    // Group teams
-    const groups = {};
-    Object.values(teamStats).forEach(t => {
-      if (!groups[t.group]) groups[t.group] = [];
-      groups[t.group].push(t);
-    });
-
-    const qualifiedTeams = [];
-    const thirdPlaces = [];
-
-    Object.keys(groups).forEach(g => {
-      // Sort by points (simple sorting, ignoring goal difference as we don't track goals)
-      const sorted = groups[g].sort((a, b) => b.points - a.points);
-      if (sorted[0]) qualifiedTeams.push(sorted[0]); // 1st
-      if (sorted[1]) qualifiedTeams.push(sorted[1]); // 2nd
-      if (sorted[2]) thirdPlaces.push(sorted[2]); // 3rd
-    });
-
-    // Sort 3rd places and take top 8
-    thirdPlaces.sort((a, b) => b.points - a.points);
-    const top8Thirds = thirdPlaces.slice(0, 8);
-
-    qualifiedTeams.push(...top8Thirds);
-    
-    // Build a nice object for the frontend modal
-    const classifiedByGroup = {};
-    qualifiedTeams.forEach(t => {
-      if (!classifiedByGroup[t.group]) classifiedByGroup[t.group] = [];
-      classifiedByGroup[t.group].push(t);
-    });
-
-    // If we have teams, fill R32
-    if (qualifiedTeams.length > 0) {
-      // Get R32 matches
-      const r32Matches = db.prepare("SELECT * FROM matches WHERE group_name = 'R32' ORDER BY bracket_position").all();
-
-      let teamIndex = 0;
-      const updateMatch = db.prepare("UPDATE matches SET team_a = ?, flag_a = ?, team_b = ?, flag_b = ? WHERE id = ? AND team_a = 'A definir'");
-
-      for (const m of r32Matches) {
-        const tA = qualifiedTeams[teamIndex++] || { name: 'A definir', flag: 'un' };
-        const tB = qualifiedTeams[teamIndex++] || { name: 'A definir', flag: 'un' };
-
-        updateMatch.run(tA.name, tA.flag, tB.name, tB.flag, m.id);
-      }
-    }
-
-    res.json({ success: true, count: qualifiedTeams.length, groups: classifiedByGroup });
+    res.json({ success: true });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Admin: Reset Points (Borrar predicciones de grupo y reiniciar puntos) ────
+app.post('/api/admin/reset-points', (req, res) => {
+  try {
+    const resetTransaction = db.transaction(() => {
+      // 1. Delete ALL predictions for group stage matches (this resets points to 0)
+      db.prepare(`
+        DELETE FROM predictions 
+        WHERE match_id IN (
+          SELECT id FROM matches 
+          WHERE group_name NOT IN ('R32','R16','QF','SF','Third','Final')
+        )
+      `).run();
+      
+      // 2. Ensure we are in knockout phase
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('tournament_phase', 'knockout')").run();
+      
+      // 3. Disable group stage bets so users can't re-bet on groups
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('bets_enabled', 'false')").run();
+    });
+    
+    resetTransaction();
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error resetting points:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1099,8 +1228,19 @@ app.get('/api/settings', (req, res) => {
     const betsEnabledThird = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_Third'").get();
     const betsEnabledFinal = db.prepare("SELECT value FROM settings WHERE key = 'bets_enabled_Final'").get();
     const showPredictions = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions'").get();
+    const showPredictionsR32 = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_R32'").get();
+    const showPredictionsR16 = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_R16'").get();
+    const showPredictionsQF = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_QF'").get();
+    const showPredictionsSF = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_SF'").get();
+    const showPredictionsThird = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_Third'").get();
+    const showPredictionsFinal = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_Final'").get();
+    
+    const showAciertos = db.prepare("SELECT value FROM settings WHERE key = 'show_aciertos'").get();
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+    const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
+    const pointsKoScoreARow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_a'").get();
+    const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
     const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
     const celebrationsRow = db.prepare("SELECT value FROM settings WHERE key = 'celebrations_enabled'").get();
     
@@ -1114,9 +1254,19 @@ app.get('/api/settings', (req, res) => {
       betsEnabledThird: betsEnabledThird ? betsEnabledThird.value === 'true' : true,
       betsEnabledFinal: betsEnabledFinal ? betsEnabledFinal.value === 'true' : true,
       showPredictions: showPredictions ? showPredictions.value === 'true' : true,
+      showPredictionsR32: showPredictionsR32 ? showPredictionsR32.value === 'true' : true,
+      showPredictionsR16: showPredictionsR16 ? showPredictionsR16.value === 'true' : true,
+      showPredictionsQF: showPredictionsQF ? showPredictionsQF.value === 'true' : true,
+      showPredictionsSF: showPredictionsSF ? showPredictionsSF.value === 'true' : true,
+      showPredictionsThird: showPredictionsThird ? showPredictionsThird.value === 'true' : true,
+      showPredictionsFinal: showPredictionsFinal ? showPredictionsFinal.value === 'true' : true,
+      showAciertos: showAciertos ? showAciertos.value === 'true' : true,
       celebrationsEnabled: celebrationsRow ? celebrationsRow.value === 'true' : true,
       pointsWin: pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3,
       pointsDraw: pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1,
+      pointsKoResult: pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2,
+      pointsKoScoreA: pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1,
+      pointsKoScoreB: pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1,
       tournamentPhase: phaseRow ? phaseRow.value : 'groups'
     });
   } catch(e) {
@@ -1174,12 +1324,39 @@ app.post('/api/settings/bets_enabled_phase', (req, res) => {
   }
 });
 
-// Toggle show predictions to all
+// Toggle show predictions to all (Groups)
 app.post('/api/settings/show_predictions', (req, res) => {
   try {
     const show = req.body.show ? 'true' : 'false';
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('show_predictions', ?)").run(show);
     res.json({ success: true, showPredictions: show === 'true' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle show predictions by phase (Knockout)
+app.post('/api/settings/show_predictions_phase', (req, res) => {
+  try {
+    const { phase, show } = req.body;
+    const validPhases = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+    if (!validPhases.includes(phase)) {
+      return res.status(400).json({ error: 'Fase inválida' });
+    }
+    const val = show ? 'true' : 'false';
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`show_predictions_${phase}`, val);
+    res.json({ success: true, phase, show: show === true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle show aciertos to all
+app.post('/api/settings/show_aciertos', (req, res) => {
+  try {
+    const show = req.body.show ? 'true' : 'false';
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('show_aciertos', ?)").run(show);
+    res.json({ success: true, showAciertos: show === 'true' });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
@@ -1199,10 +1376,21 @@ app.post('/api/settings/celebrations', (req, res) => {
 // Update points rules
 app.post('/api/settings/points', (req, res) => {
   try {
-    const { win, draw } = req.body;
+    const { win, draw, koResult, koScoreA, koScoreB } = req.body;
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_win', ?)").run(win.toString());
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_draw', ?)").run(draw.toString());
-    res.json({ success: true, pointsWin: parseInt(win, 10), pointsDraw: parseInt(draw, 10) });
+    if (koResult !== undefined) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_ko_result', ?)").run(koResult.toString());
+    if (koScoreA !== undefined) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_ko_score_a', ?)").run(koScoreA.toString());
+    if (koScoreB !== undefined) db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('points_ko_score_b', ?)").run(koScoreB.toString());
+    
+    res.json({ 
+      success: true, 
+      pointsWin: parseInt(win, 10), 
+      pointsDraw: parseInt(draw, 10),
+      pointsKoResult: koResult !== undefined ? parseInt(koResult, 10) : 2,
+      pointsKoScoreA: koScoreA !== undefined ? parseInt(koScoreA, 10) : 1,
+      pointsKoScoreB: koScoreB !== undefined ? parseInt(koScoreB, 10) : 1
+    });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
@@ -1263,8 +1451,15 @@ app.get('/api/participants/:id/history', (req, res) => {
 
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+    const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
+    const pointsKoScoreARow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_a'").get();
+    const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
+
     const ptsWin = pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3;
     const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
+    const ptsKoResult = pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2;
+    const ptsKoScoreA = pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1;
+    const ptsKoScoreB = pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1;
 
     const predictions = db.prepare(`
       SELECT 
@@ -1275,34 +1470,83 @@ app.get('/api/participants/:id/history', (req, res) => {
         m.flag_a,
         m.flag_b,
         m.result,
+        m.score_a as match_score_a,
+        m.score_b as match_score_b,
         p.prediction,
-        p.created_at as prediction_date,
-        CASE 
-          WHEN m.result IS NULL THEN 'pending'
-          WHEN p.prediction IS NULL THEN 'no_prediction'
-          WHEN p.prediction = m.result AND m.result = 'D' THEN 'correct_draw'
-          WHEN p.prediction = m.result THEN 'correct'
-          ELSE 'wrong'
-        END as status,
-        CASE 
-          WHEN m.result IS NOT NULL AND p.prediction = m.result AND m.result = 'D' THEN ${ptsDraw}
-          WHEN m.result IS NOT NULL AND p.prediction = m.result THEN ${ptsWin}
-          ELSE 0
-        END as points_earned
+        p.score_a as pred_score_a,
+        p.score_b as pred_score_b,
+        p.created_at as prediction_date
       FROM matches m
       LEFT JOIN predictions p ON m.id = p.match_id AND p.participant_id = ?
       WHERE m.group_name != 'Prueba'
       ORDER BY m.group_name, m.id
     `).all(req.params.id);
 
-    const totalPoints = predictions.reduce((sum, p) => sum + p.points_earned, 0);
-    const totalCorrect = predictions.filter(p => p.status === 'correct' || p.status === 'correct_draw').length;
-    const totalPredicted = predictions.filter(p => p.prediction !== null).length;
-    const totalPlayed = predictions.filter(p => p.result !== null).length;
+    const knockoutRounds = ['R32', 'R16', 'QF', 'SF', 'Third', 'Final'];
+
+    const formattedPredictions = predictions.map(p => {
+      let points_earned = 0;
+      let status = 'pending';
+
+      const isKo = knockoutRounds.includes(p.group_name);
+
+      if (p.result !== null) {
+        if (p.prediction === null) {
+          status = 'no_prediction';
+        } else {
+          const matchOutcome = p.result;
+          const predOutcome = p.prediction;
+          
+          if (isKo) {
+            const winnerPts = (predOutcome === matchOutcome) ? ptsKoResult : 0;
+            const exactScoreAPts = (p.pred_score_a === p.match_score_a && p.pred_score_a !== null && p.match_score_a !== null) ? ptsKoScoreA : 0;
+            const exactScoreBPts = (p.pred_score_b === p.match_score_b && p.pred_score_b !== null && p.match_score_b !== null) ? ptsKoScoreB : 0;
+            
+            points_earned = winnerPts + exactScoreAPts + exactScoreBPts;
+            
+            if (predOutcome === matchOutcome) {
+              status = (exactScoreAPts > 0 && exactScoreBPts > 0) ? 'correct_exact' : 'correct';
+            } else {
+              status = 'wrong';
+            }
+          } else {
+            if (predOutcome === matchOutcome) {
+              points_earned = matchOutcome === 'D' ? ptsDraw : ptsWin;
+              status = 'correct';
+            } else {
+              status = 'wrong';
+            }
+          }
+        }
+      }
+
+      return {
+        match_id: p.match_id,
+        group_name: p.group_name,
+        team_a: p.team_a,
+        team_b: p.team_b,
+        flag_a: p.flag_a,
+        flag_b: p.flag_b,
+        result: p.result,
+        match_score_a: p.match_score_a,
+        match_score_b: p.match_score_b,
+        prediction: p.prediction,
+        pred_score_a: p.pred_score_a,
+        pred_score_b: p.pred_score_b,
+        prediction_date: p.prediction_date,
+        status,
+        points_earned
+      };
+    });
+
+    const totalPoints = formattedPredictions.reduce((sum, p) => sum + p.points_earned, 0);
+    const totalCorrect = formattedPredictions.filter(p => p.status === 'correct' || p.status === 'correct_draw' || p.status === 'correct_exact').length;
+    const totalPredicted = formattedPredictions.filter(p => p.prediction !== null).length;
+    const totalPlayed = formattedPredictions.filter(p => p.result !== null).length;
 
     res.json({
       participant,
-      predictions,
+      predictions: formattedPredictions,
       summary: {
         totalPoints,
         totalCorrect,
@@ -1348,19 +1592,35 @@ app.get('/api/admin/export-excel', async (req, res) => {
   try {
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
+    const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
+    const pointsKoScoreARow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_a'").get();
+    const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
+
     const ptsWin = pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3;
     const ptsDraw = pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1;
+    const ptsKoResult = pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2;
+    const ptsKoScoreA = pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1;
+    const ptsKoScoreB = pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1;
+
 
     // Fetch all data
     const participants = db.prepare('SELECT id, name, nickname FROM participants ORDER BY name').all();
     const allMatches = db.prepare('SELECT * FROM matches ORDER BY id').all();
-    const allPredictions = db.prepare('SELECT participant_id, match_id, prediction FROM predictions').all();
+    const allPredictions = db.prepare('SELECT participant_id, match_id, prediction, score_a, score_b FROM predictions').all();
 
-    // Build prediction lookup: { participantId: { matchId: prediction } }
+    // Build prediction lookup maps
     const predMap = {};
+    const predScoresMap = {};
     for (const pr of allPredictions) {
       if (!predMap[pr.participant_id]) predMap[pr.participant_id] = {};
       predMap[pr.participant_id][pr.match_id] = pr.prediction;
+
+      if (!predScoresMap[pr.participant_id]) predScoresMap[pr.participant_id] = {};
+      predScoresMap[pr.participant_id][pr.match_id] = {
+        prediction: pr.prediction,
+        score_a: pr.score_a,
+        score_b: pr.score_b
+      };
     }
 
     // Separate matches
@@ -1372,11 +1632,26 @@ app.get('/api/admin/export-excel', async (req, res) => {
     function calcPoints(participant, matchList) {
       let points = 0, aciertos = 0, total = 0;
       for (const m of matchList) {
-        const pred = predMap[participant.id]?.[m.id];
-        if (pred) total++;
-        if (m.result && pred === m.result) {
-          aciertos++;
-          points += m.result === 'D' ? ptsDraw : ptsWin;
+        const pred = predScoresMap[participant.id]?.[m.id];
+        if (pred && pred.prediction !== null) total++;
+        
+        if (m.result && pred && pred.prediction !== null) {
+          const isKo = knockoutRounds.includes(m.group_name);
+          if (isKo) {
+            const winnerPts = (pred.prediction === m.result) ? ptsKoResult : 0;
+            const exactScoreAPts = (pred.score_a === m.score_a && pred.score_a !== null && m.score_a !== null) ? ptsKoScoreA : 0;
+            const exactScoreBPts = (pred.score_b === m.score_b && pred.score_b !== null && m.score_b !== null) ? ptsKoScoreB : 0;
+            
+            points += winnerPts + exactScoreAPts + exactScoreBPts;
+            if (pred.prediction === m.result) {
+              aciertos++;
+            }
+          } else {
+            if (pred.prediction === m.result) {
+              aciertos++;
+              points += m.result === 'D' ? ptsDraw : ptsWin;
+            }
+          }
         }
       }
       return { points, aciertos, total };
@@ -1692,30 +1967,29 @@ app.get('/api/admin/export-excel', async (req, res) => {
       let pts = 0, aci = 0;
 
       for (const m of koMatchList) {
-        const pred = predMap[p.id]?.[m.id];
+        const pred = predScoresMap[p.id]?.[m.id];
         const colKey = `m_${m.id}`;
 
-        if (!pred) {
+        if (!pred || pred.prediction === null) {
           rowData[colKey] = 'Sin apuesta';
-        } else if (pred === 'A') {
-          rowData[colKey] = `Gana ${m.team_a.substring(0, 3).toUpperCase()}`;
-        } else if (pred === 'B') {
-          rowData[colKey] = `Gana ${m.team_b.substring(0, 3).toUpperCase()}`;
         } else {
-          rowData[colKey] = 'Empate';
+          const scoreText = (pred.score_a !== null && pred.score_b !== null) ? `${pred.score_a} - ${pred.score_b}` : (pred.prediction === 'A' ? 'Gana A' : (pred.prediction === 'B' ? 'Gana B' : 'Empate'));
+          rowData[colKey] = scoreText;
         }
 
-        if (m.result) {
-          if (!pred) {
-            rowData[colKey] = 'SIN APUESTA (0)';
-          } else if (pred === m.result) {
-            const earned = m.result === 'D' ? ptsDraw : ptsWin;
-            pts += earned;
+        if (m.result && pred && pred.prediction !== null) {
+          const winnerPts = (pred.prediction === m.result) ? ptsKoResult : 0;
+          const exactScoreAPts = (pred.score_a === m.score_a && pred.score_a !== null && m.score_a !== null) ? ptsKoScoreA : 0;
+          const exactScoreBPts = (pred.score_b === m.score_b && pred.score_b !== null && m.score_b !== null) ? ptsKoScoreB : 0;
+          
+          const earned = winnerPts + exactScoreAPts + exactScoreBPts;
+          pts += earned;
+          if (pred.prediction === m.result) {
             aci++;
-            rowData[colKey] += ` (+${earned})`;
-          } else {
-            rowData[colKey] += ' (0)';
           }
+          rowData[colKey] += ` (+${earned})`;
+        } else if (m.result) {
+          rowData[colKey] += ' (0)';
         }
       }
 
@@ -1727,16 +2001,16 @@ app.get('/api/admin/export-excel', async (req, res) => {
       let ci = 2;
       for (const m of koMatchList) {
         const cell = row.getCell(ci);
-        const pred = predMap[p.id]?.[m.id];
+        const pred = predScoresMap[p.id]?.[m.id];
         cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
         cell.font = { size: 9 };
         cell.border = thinBorder;
 
         if (m.result) {
-          if (!pred) {
+          if (!pred || pred.prediction === null) {
             cell.fill = grayFill;
             cell.font = { size: 9, color: { argb: 'FFFFFFFF' }, italic: true };
-          } else if (pred === m.result) {
+          } else if (pred.prediction === m.result) {
             cell.fill = greenFill;
             cell.font = { size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
           } else {
@@ -1780,6 +2054,12 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
+// Ensure image_url column exists
+try {
+  db.exec("ALTER TABLE fun_facts ADD COLUMN image_url TEXT DEFAULT NULL;");
+} catch (e) {
+  // Column likely exists
+}
 
 // Get all fun facts
 app.get('/api/fun-facts', (req, res) => {
@@ -1792,14 +2072,20 @@ app.get('/api/fun-facts', (req, res) => {
 });
 
 // Add a fun fact (admin)
-app.post('/api/fun-facts', (req, res) => {
+app.post('/api/fun-facts', upload.single('image'), (req, res) => {
   const { text } = req.body;
   if (!text || text.trim().length === 0) {
     return res.status(400).json({ error: 'El dato curioso no puede estar vacío' });
   }
+  
+  let imageUrl = null;
+  if (req.file) {
+    imageUrl = '/uploads/' + req.file.filename;
+  }
+  
   try {
-    const result = db.prepare('INSERT INTO fun_facts (text) VALUES (?)').run(text.trim());
-    res.json({ id: result.lastInsertRowid, text: text.trim() });
+    const result = db.prepare('INSERT INTO fun_facts (text, image_url) VALUES (?, ?)').run(text.trim(), imageUrl);
+    res.json({ id: result.lastInsertRowid, text: text.trim(), image_url: imageUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

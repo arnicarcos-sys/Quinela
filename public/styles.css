@@ -342,6 +342,56 @@ select {
   background: rgba(248, 113, 113, 0.25);
 }
 
+.btn-save-single-match {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  border: none;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+/* For group stage: default width 100% */
+.match-card .btn-save-single-match {
+  width: 100%;
+}
+
+/* For knockout stage: width 80% */
+.vs-card .btn-save-single-match {
+  width: 80%;
+  margin: 10px auto 0;
+}
+
+.btn-save-single-match:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent), var(--accent-bright));
+  color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+.btn-save-single-match:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
+}
+
+.btn-save-single-match:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.btn-save-single-match:disabled {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--green);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* ─── Leaderboard ─────────────────────────────────────── */
 .leaderboard-container {
   background: var(--bg-card);
@@ -551,7 +601,9 @@ select {
 }
 
 .match-card.has-result {
-  opacity: 0.7;
+  /* Groups tab: always full color — no opacity or filter allowed */
+  opacity: 1 !important;
+  filter: none !important;
 }
 
 .match-teams {
@@ -653,6 +705,21 @@ select {
 .pred-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ─── Finished Group Matches: keep selected btn vivid, hide unselected ─── */
+/* The selected button retains full opacity and vivid color */
+.match-card.has-result .pred-btn.selected-a:disabled,
+.match-card.has-result .pred-btn.selected-d:disabled,
+.match-card.has-result .pred-btn.selected-b:disabled {
+  opacity: 1 !important;
+  filter: none !important;
+  cursor: default;
+}
+
+/* Hide the unselected/empty buttons on finished group matches */
+.match-card.has-result .pred-btn:disabled:not(.selected-a):not(.selected-d):not(.selected-b) {
+  display: none !important;
 }
 
 .pred-btn .pred-label {
@@ -975,6 +1042,43 @@ select {
   50% { box-shadow: 0 4px 28px rgba(16, 185, 129, 0.55), 0 0 0 8px rgba(16, 185, 129, 0.08); }
 }
 
+/* Glowing animation when there is a new fact */
+.virus-fab.has-new {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.7), 0 0 40px rgba(239, 68, 68, 0.4);
+  animation: virus-pulse-new 1.5s ease-in-out infinite alternate !important;
+}
+
+@keyframes virus-pulse-new {
+  0% {
+    box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3), 0 0 10px rgba(239, 68, 68, 0.4);
+    transform: scale(1);
+  }
+  100% {
+    box-shadow: 0 4px 28px rgba(16, 185, 129, 0.5), 0 0 25px rgba(239, 68, 68, 0.85);
+    transform: scale(1.1);
+  }
+}
+
+/* Red notification badge dot */
+.virus-fab.has-new::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  background-color: #ef4444; /* red */
+  border: 2px solid white; /* contrasting border */
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.8);
+  animation: bounce-badge 1s infinite alternate;
+}
+
+@keyframes bounce-badge {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-3px); }
+}
+
 /* ─── Toast ───────────────────────────────────────────── */
 .toast {
   position: fixed;
@@ -1032,8 +1136,31 @@ select {
   color: var(--red);
 }
 
+.official-result-badge {
+  position: absolute;
+  top: -14px;
+  right: 10px;
+  background: var(--bg-body);
+  border: 2px solid var(--gold);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: bold;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.4);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
 /* ─── Responsive ──────────────────────────────────────── */
 @media (max-width: 768px) {
+  .official-result-badge {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
   .header-content {
     flex-direction: column;
     gap: 10px;
@@ -1427,6 +1554,91 @@ select {
   font-size: 0.9rem;
 }
 
+/* ─── Modern History Layout for Knockouts ────────────── */
+.modern-history-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 10px;
+}
+
+.modern-history-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.modern-match {
+  justify-content: center;
+  font-size: 0.95rem;
+}
+
+.modern-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modern-team-a {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.modern-team-b {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.modern-team img {
+  width: 24px;
+  height: 16px;
+}
+
+.modern-score-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 60px;
+  margin: 0 10px;
+}
+
+.modern-score-real {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--gold);
+  background: rgba(212, 163, 89, 0.1);
+  padding: 4px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(212, 163, 89, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.modern-score-pending {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.modern-prediction {
+  justify-content: space-between;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+  margin-top: 2px;
+}
+
+.modern-prediction .history-pred-badge {
+  font-size: 0.8rem;
+  padding: 4px 12px;
+}
+
 /* ─── Tendencias ─────────────────────────────────────── */
 .tendencias-grid {
   display: grid;
@@ -1595,7 +1807,7 @@ select {
   border-radius: var(--radius-lg);
   padding: 24px;
   width: 90%;
-  max-width: 500px;
+  max-width: 650px; /* Increased from 500px to allow more room and reduce scrollbar overlaps */
   max-height: 85vh;
   overflow-y: auto;
   position: relative;
@@ -1882,7 +2094,7 @@ select {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+  overflow: visible;
   transition: all 0.3s ease;
   position: relative;
   height: 100px;
@@ -1911,6 +2123,7 @@ select {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
 }
 
 .bracket-team-slot {
@@ -3410,4 +3623,27 @@ select {
 .tour-nav-btns {
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .participant-header-card {
+    flex-direction: column !important;
+    gap: 15px !important;
+    padding: 20px 15px !important;
+  }
+  .participant-header-stats {
+    flex-wrap: wrap !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border) !important;
+    padding: 15px 0 !important;
+    margin: 5px 0 !important;
+    width: 100% !important;
+    gap: 15px !important;
+  }
+  .participant-header-card > div:last-child {
+    width: 100% !important;
+    justify-content: center !important;
+  }
 }
