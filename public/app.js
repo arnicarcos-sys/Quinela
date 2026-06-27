@@ -23,6 +23,7 @@ let showPredictionsSF = true;
 let showPredictionsThird = true;
 let showPredictionsFinal = true;
 let showAciertos = true;
+let showPendientes = true;
 let pointsWin = 3;
 let pointsDraw = 1;
 let pointsKoResult = 2;
@@ -132,6 +133,9 @@ function setupEventListeners() {
   });
   if ($('#aciertosToggle')) {
     $('#aciertosToggle').addEventListener('change', toggleAciertosVisibility);
+  }
+  if ($('#pendientesToggle')) {
+    $('#pendientesToggle').addEventListener('change', togglePendientesVisibility);
   }
 
   // Celebrations toggle
@@ -350,6 +354,7 @@ async function loadData() {
     
     // Aciertos visibility state
     showAciertos = settings.showAciertos !== undefined ? settings.showAciertos : true;
+    showPendientes = settings.showPendientes !== undefined ? settings.showPendientes : true;
     updateAciertosUI();
     
     // Celebrations state
@@ -577,7 +582,7 @@ function renderLeaderboard() {
         <th style="text-align:center">#</th>
         <th>Participante</th>
         ${showAciertos ? '<th style="text-align:center">Aciertos</th>' : ''}
-        <th style="text-align:center">Pendientes</th>
+        ${showPendientes ? '<th style="text-align:center">Pendientes</th>' : ''}
         <th style="text-align:center">Puntos</th>
         <th></th>
       </tr>
@@ -648,9 +653,11 @@ function renderLeaderboard() {
                 ${displayName}
               </td>
               ${showAciertos ? `<td class="aciertos-cell" style="text-align:center">${p.aciertos}</td>` : ''}
+              ${showPendientes ? `
               <td class="pending-cell" style="text-align:center">
                 <span class="badge ${pending > 0 ? 'badge-warning' : 'badge-success'}">${pending}</span>
               </td>
+              ` : ''}
               <td class="points-cell" style="text-align:center; font-weight: 800; color: var(--gold);">${p.points}</td>
               <td>
                 ${isAdmin ? `<button class="delete-btn" onclick="event.stopPropagation(); deleteParticipant(${p.id}, '${escapeHtml(p.name)}')" title="Eliminar">🗑️</button>` : ''}
@@ -2255,6 +2262,17 @@ function updateAciertosUI() {
   }
 }
 
+function updatePendientesUI() {
+  const toggle = $('#pendientesToggle');
+  if (toggle) toggle.checked = showPendientes;
+  
+  const label = $('#pendientesStatusLabel');
+  if (label) {
+    label.textContent = showPendientes ? 'Visible' : 'Oculto';
+    label.classList.toggle('disabled', !showPendientes);
+  }
+}
+
 window.updateHeaderStats = function(stats) {
   if (!$('#headerPoints')) return;
   
@@ -2389,6 +2407,29 @@ async function toggleAciertosVisibility() {
     showToast('Error al cambiar visibilidad de aciertos', 'error');
     // Revert toggle
     $('#aciertosToggle').checked = !newState;
+  }
+}
+
+async function togglePendientesVisibility() {
+  const newState = $('#pendientesToggle').checked;
+  
+  try {
+    const res = await fetch('/api/settings/show_pendientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ show: newState })
+    });
+    
+    if (res.ok) {
+      showPendientes = newState;
+      updatePendientesUI();
+      renderLeaderboard();
+      showToast(newState ? '✅ Columna de pendientes visible' : '🔒 Columna de pendientes oculta', 'success');
+    }
+  } catch (err) {
+    showToast('Error al cambiar visibilidad de pendientes', 'error');
+    // Revert toggle
+    $('#pendientesToggle').checked = !newState;
   }
 }
 

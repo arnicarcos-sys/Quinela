@@ -1236,6 +1236,7 @@ app.get('/api/settings', (req, res) => {
     const showPredictionsFinal = db.prepare("SELECT value FROM settings WHERE key = 'show_predictions_Final'").get();
     
     const showAciertos = db.prepare("SELECT value FROM settings WHERE key = 'show_aciertos'").get();
+    const showPendientes = db.prepare("SELECT value FROM settings WHERE key = 'show_pendientes'").get();
     const pointsWinRow = db.prepare("SELECT value FROM settings WHERE key = 'points_win'").get();
     const pointsDrawRow = db.prepare("SELECT value FROM settings WHERE key = 'points_draw'").get();
     const pointsKoResultRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_result'").get();
@@ -1261,6 +1262,7 @@ app.get('/api/settings', (req, res) => {
       showPredictionsThird: showPredictionsThird ? showPredictionsThird.value === 'true' : true,
       showPredictionsFinal: showPredictionsFinal ? showPredictionsFinal.value === 'true' : true,
       showAciertos: showAciertos ? showAciertos.value === 'true' : true,
+      showPendientes: showPendientes ? showPendientes.value === 'true' : true,
       celebrationsEnabled: celebrationsRow ? celebrationsRow.value === 'true' : true,
       pointsWin: pointsWinRow ? parseInt(pointsWinRow.value, 10) : 3,
       pointsDraw: pointsDrawRow ? parseInt(pointsDrawRow.value, 10) : 1,
@@ -1280,6 +1282,10 @@ app.get('/api/settings', (req, res) => {
       betsEnabledThird: true,
       betsEnabledFinal: true,
       showPredictions: true,
+      showPredictionsThird: true,
+      showPredictionsFinal: true,
+      showAciertos: true,
+      showPendientes: true,
       celebrationsEnabled: true,
       pointsWin: 3,
       pointsDraw: 1,
@@ -1357,6 +1363,17 @@ app.post('/api/settings/show_aciertos', (req, res) => {
     const show = req.body.show ? 'true' : 'false';
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('show_aciertos', ?)").run(show);
     res.json({ success: true, showAciertos: show === 'true' });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Toggle show pendientes to all
+app.post('/api/settings/show_pendientes', (req, res) => {
+  try {
+    const show = req.body.show ? 'true' : 'false';
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('show_pendientes', ?)").run(show);
+    res.json({ success: true, showPendientes: show === 'true' });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
