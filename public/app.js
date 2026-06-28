@@ -2167,6 +2167,9 @@ async function toggleBets() {
       betsEnabled = newState;
       updateBetsUI();
       renderGroups();
+      if (document.getElementById('sectionKnockout') && document.getElementById('sectionKnockout').classList.contains('active')) {
+        renderBracket();
+      }
       showToast(newState ? '✅ Apuestas de grupos habilitadas' : '🔒 Apuestas de grupos deshabilitadas', 'success');
     }
   } catch (err) {
