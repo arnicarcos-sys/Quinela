@@ -481,8 +481,8 @@ app.post('/api/participants', (req, res) => {
   }
   
   const count = db.prepare('SELECT COUNT(*) as count FROM participants').get();
-  if (count.count >= 70) {
-    return res.status(400).json({ error: 'Se alcanzó el límite de 70 participantes' });
+  if (count.count >= 75) {
+    return res.status(400).json({ error: 'Se alcanzó el límite de 75 participantes' });
   }
 
   try {

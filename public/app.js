@@ -402,7 +402,7 @@ function updateStats(stats) {
   } else {
     $('#statPlayed').textContent = `${stats.groupPlayed}/${stats.groupTotal}`;
   }
-  $('#capacityText').textContent = `${stats.totalParticipants}/70 participantes`;
+  $('#capacityText').textContent = `${stats.totalParticipants}/75 participantes`;
 }
 
 // ─── Participants ───────────────────────────────────────
