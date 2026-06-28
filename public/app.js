@@ -2967,20 +2967,18 @@ function renderTendencias() {
           </div>
         `;
       } else {
-        const totalAB = stats.A + stats.B;
-        const pctA_KO = totalAB > 0 ? Math.round((stats.A / totalAB) * 100) : 0;
-        const pctB_KO = totalAB > 0 ? Math.round((stats.B / totalAB) * 100) : 0;
-        
         barContainer = `
           <div class="tendencia-bar-container">
-            <div class="tendencia-bar bar-a" style="width: ${pctA_KO}%"></div>
-            <div class="tendencia-bar bar-b" style="width: ${pctB_KO}%"></div>
+            <div class="tendencia-bar bar-a" style="width: ${pctA}%"></div>
+            <div class="tendencia-bar bar-d" style="width: ${pctD}%"></div>
+            <div class="tendencia-bar bar-b" style="width: ${pctB}%"></div>
           </div>
         `;
         labelsRow = `
           <div class="tendencia-labels">
-            <div class="tendencia-label label-a">${match.team_a} ${pctA_KO}%</div>
-            <div class="tendencia-label label-b">${match.team_b} ${pctB_KO}%</div>
+            <div class="tendencia-label label-a" title="${match.team_a}">${match.team_a.length > 3 ? match.team_a.substring(0, 3) + '.' : match.team_a} ${pctA}%</div>
+            <div class="tendencia-label label-d">E ${pctD}%</div>
+            <div class="tendencia-label label-b" title="${match.team_b}">${match.team_b.length > 3 ? match.team_b.substring(0, 3) + '.' : match.team_b} ${pctB}%</div>
           </div>
         `;
       }
