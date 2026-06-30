@@ -1244,6 +1244,13 @@ app.get('/api/settings', (req, res) => {
     const pointsKoScoreBRow = db.prepare("SELECT value FROM settings WHERE key = 'points_ko_score_b'").get();
     const phaseRow = db.prepare("SELECT value FROM settings WHERE key = 'tournament_phase'").get();
     const celebrationsRow = db.prepare("SELECT value FROM settings WHERE key = 'celebrations_enabled'").get();
+
+    const adEnabled = db.prepare("SELECT value FROM settings WHERE key = 'ad_enabled'").get();
+    const adTitle = db.prepare("SELECT value FROM settings WHERE key = 'ad_title'").get();
+    const adDescription = db.prepare("SELECT value FROM settings WHERE key = 'ad_description'").get();
+    const adLink = db.prepare("SELECT value FROM settings WHERE key = 'ad_link'").get();
+    const adImage = db.prepare("SELECT value FROM settings WHERE key = 'ad_image'").get();
+    const adFrequency = db.prepare("SELECT value FROM settings WHERE key = 'ad_frequency'").get();
     
     res.json({
       theme: theme ? theme.value : '#3b82f6',
@@ -1269,7 +1276,13 @@ app.get('/api/settings', (req, res) => {
       pointsKoResult: pointsKoResultRow ? parseInt(pointsKoResultRow.value, 10) : 2,
       pointsKoScoreA: pointsKoScoreARow ? parseInt(pointsKoScoreARow.value, 10) : 1,
       pointsKoScoreB: pointsKoScoreBRow ? parseInt(pointsKoScoreBRow.value, 10) : 1,
-      tournamentPhase: phaseRow ? phaseRow.value : 'groups'
+      tournamentPhase: phaseRow ? phaseRow.value : 'groups',
+      adEnabled: adEnabled ? adEnabled.value === 'true' : false,
+      adTitle: adTitle ? adTitle.value : '',
+      adDescription: adDescription ? adDescription.value : '',
+      adLink: adLink ? adLink.value : '',
+      adImage: adImage ? adImage.value : '',
+      adFrequency: adFrequency ? adFrequency.value : 'session'
     });
   } catch(e) {
     res.json({
@@ -1289,7 +1302,13 @@ app.get('/api/settings', (req, res) => {
       celebrationsEnabled: true,
       pointsWin: 3,
       pointsDraw: 1,
-      tournamentPhase: 'groups'
+      tournamentPhase: 'groups',
+      adEnabled: false,
+      adTitle: '',
+      adDescription: '',
+      adLink: '',
+      adImage: '',
+      adFrequency: 'session'
     });
   }
 });
@@ -1325,6 +1344,39 @@ app.post('/api/settings/bets_enabled_phase', (req, res) => {
     const val = enabled ? 'true' : 'false';
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)").run(`bets_enabled_${phase}`, val);
     res.json({ success: true, phase, enabled: enabled === true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Save ad settings
+app.post('/api/settings/ad', (req, res) => {
+  try {
+    const { enabled, title, description, link, frequency } = req.body;
+    
+    db.transaction(() => {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_enabled', ?)").run(enabled ? 'true' : 'false');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_title', ?)").run(title || '');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_description', ?)").run(description || '');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_link', ?)").run(link || '');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_frequency', ?)").run(frequency || 'session');
+    })();
+
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload ad image
+app.post('/api/settings/ad/image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se subió ninguna imagen' });
+  }
+  try {
+    const imagePath = '/uploads/' + req.file.filename;
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_image', ?)").run(imagePath);
+    res.json({ success: true, imagePath });
   } catch(e) {
     res.status(500).json({ error: e.message });
   }

@@ -24,6 +24,12 @@ let showPredictionsThird = true;
 let showPredictionsFinal = true;
 let showAciertos = true;
 let showPendientes = true;
+let adEnabled = false;
+let adTitle = "";
+let adDescription = "";
+let adLink = "";
+let adImage = "";
+let adFrequency = "session";
 let pointsWin = 3;
 let pointsDraw = 1;
 let pointsKoResult = 2;
@@ -382,6 +388,34 @@ async function loadData() {
     if (tournamentPhase === 'knockout') {
       await loadBracket();
     }
+
+    // Ad settings
+    adEnabled = settings.adEnabled;
+    adTitle = settings.adTitle || '';
+    adDescription = settings.adDescription || '';
+    adLink = settings.adLink || '';
+    adImage = settings.adImage || '';
+    adFrequency = settings.adFrequency || 'session';
+
+    // Update Ad Control Card in Admin Panel
+    if ($('#adToggle')) $('#adToggle').checked = adEnabled;
+    if ($('#adInputTitle')) $('#adInputTitle').value = adTitle;
+    if ($('#adInputDescription')) $('#adInputDescription').value = adDescription;
+    if ($('#adInputLink')) $('#adInputLink').value = adLink;
+    if ($('#adSelectFrequency')) $('#adSelectFrequency').value = adFrequency;
+    if ($('#adImagePreview')) {
+      if (adImage) {
+        $('#adImagePreview').src = adImage;
+        $('#adImagePreviewContainer').style.display = 'block';
+        $('#adFileName').textContent = adImage.split('/').pop();
+      } else {
+        $('#adImagePreviewContainer').style.display = 'none';
+        $('#adFileName').textContent = 'Ningún archivo seleccionado';
+      }
+    }
+
+    // Try showing ad modal
+    checkAndShowAd();
     
     updateStats(stats);
     renderLeaderboard();
@@ -4800,3 +4834,146 @@ window.unlockPrediction = function(matchId) {
 window.addEventListener('load', () => {
   AppTour.init();
 });
+
+// ─── Ad Modal Functions ──────────────────────────────────
+function checkAndShowAd() {
+  if (!adEnabled) return;
+  
+  if (adFrequency === 'session') {
+    if (sessionStorage.getItem('adShown')) return;
+    sessionStorage.setItem('adShown', 'true');
+  }
+  
+  showAdModal();
+}
+
+function showAdModal() {
+  const overlay = $('#adModalOverlay');
+  const body = $('#adModalBody');
+  if (!overlay || !body) return;
+
+  let imageHtml = '';
+  if (adImage) {
+    imageHtml = `
+      <a href="${adLink || '#'}" target="${adLink ? '_blank' : '_self'}" class="ad-banner-link">
+        <img src="${adImage}" alt="${adTitle}" class="ad-banner-img">
+      </a>
+    `;
+  }
+
+  let ctaHtml = '';
+  if (adLink) {
+    ctaHtml = `
+      <a href="${adLink}" target="_blank" class="ad-action-btn">
+        🔗 Visitar Anuncio
+      </a>
+    `;
+  }
+
+  body.innerHTML = `
+    ${imageHtml}
+    <h3 class="ad-title">${adTitle || '¡Anuncio Publicitario!'}</h3>
+    <p class="ad-desc">${adDescription || ''}</p>
+    ${ctaHtml}
+  `;
+
+  overlay.style.display = 'flex';
+  // Trigger reflow to run transition
+  overlay.offsetHeight; 
+  overlay.classList.add('show');
+
+  // Dismiss on clicking close btn
+  const closeBtn = $('#btnAdModalClose');
+  if (closeBtn) {
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      closeAdModal();
+    };
+  }
+
+  // Dismiss on overlay click (which includes card click since it propagates)
+  overlay.onclick = () => {
+    closeAdModal();
+  };
+}
+
+function closeAdModal() {
+  const overlay = $('#adModalOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  setTimeout(() => {
+    overlay.style.display = 'none';
+  }, 400); // matches transition time
+}
+
+window.handleAdImageUpload = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  $('#adFileName').textContent = file.name;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/api/settings/ad/image', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error, 'error');
+      return;
+    }
+
+    const data = await res.json();
+    adImage = data.imagePath;
+
+    // Show preview
+    $('#adImagePreview').src = adImage;
+    $('#adImagePreviewContainer').style.display = 'block';
+    showToast('📸 Imagen de anuncio cargada', 'success');
+  } catch (err) {
+    showToast('Error al subir la imagen', 'error');
+  }
+};
+
+window.saveAdSettings = async function(btn) {
+  const enabled = $('#adToggle').checked;
+  const title = $('#adInputTitle').value.trim();
+  const description = $('#adInputDescription').value.trim();
+  const link = $('#adInputLink').value.trim();
+  const frequency = $('#adSelectFrequency').value;
+
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Guardando...';
+
+  try {
+    const res = await fetch('/api/settings/ad', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, title, description, link, frequency })
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error, 'error');
+      return;
+    }
+
+    adEnabled = enabled;
+    adTitle = title;
+    adDescription = description;
+    adLink = link;
+    adFrequency = frequency;
+
+    showToast('✅ Configuración de anuncio guardada', 'success');
+  } catch (err) {
+    showToast('Error al guardar la configuración del anuncio', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+};

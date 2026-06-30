@@ -490,6 +490,67 @@
           </div>
         </div>
 
+        <!-- Pop-up Ad Control -->
+        <div class="add-participant-card ad-control-card" style="margin-bottom: 30px; border-color: var(--theme-color); border-width: 1px;" id="adControlCard">
+          <h3>📢 Gestión de Publicidad Pop-up</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 15px;">Configura un anuncio que cubra la pantalla al ingresar a la quinela.</p>
+          
+          <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-base); padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 16px;">
+            <span style="font-weight: bold; font-size: 0.9rem;">Habilitar Anuncio Pop-up</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="adToggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 16px;">
+            <div>
+              <label style="display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: bold;">Título del Anuncio:</label>
+              <input type="text" id="adInputTitle" placeholder="Ej. ¡Patrocinado por Tacos El Jefe! 🌮" style="width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit;">
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: bold;">Descripción / Mensaje:</label>
+              <textarea id="adInputDescription" placeholder="Ej. Visítanos y obtén un 10% de descuento mencionando que vienes de la Quinela..." rows="3" style="width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit; resize: vertical;"></textarea>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+              <div>
+                <label style="display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: bold;">Enlace de Destino (URL):</label>
+                <input type="text" id="adInputLink" placeholder="Ej. https://wa.me/52123..." style="width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: bold;">Frecuencia del Anuncio:</label>
+                <select id="adSelectFrequency" style="width: 100%; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); font-family: inherit;">
+                  <option value="session">Una vez por sesión</option>
+                  <option value="always">Siempre al recargar la página</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label style="display: block; font-size: 0.85rem; margin-bottom: 4px; font-weight: bold;">Subir Banner Publicitario (Imagen):</label>
+              <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <input type="file" id="adInputFile" accept="image/*" style="display: none;" onchange="handleAdImageUpload(this)">
+                <button class="btn btn-secondary" type="button" onclick="document.getElementById('adInputFile').click()">
+                  📂 Seleccionar Imagen
+                </button>
+                <span id="adFileName" style="font-size: 0.8rem; color: var(--text-muted);">Ningún archivo seleccionado</span>
+              </div>
+              <div id="adImagePreviewContainer" style="margin-top: 10px; display: none; text-align: center; border: 1px dashed var(--border); padding: 8px; border-radius: var(--radius); background: rgba(0,0,0,0.1);">
+                <span style="display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">Vista previa actual:</span>
+                <img id="adImagePreview" src="" alt="Vista previa del anuncio" style="max-height: 140px; max-width: 100%; border-radius: var(--radius); object-fit: contain;">
+              </div>
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end;">
+            <button class="btn btn-primary" onclick="saveAdSettings(this)">
+              💾 Guardar Configuración de Anuncio
+            </button>
+          </div>
+        </div>
+
         <!-- Participant History Viewer -->
         <div class="add-participant-card history-card" style="margin-bottom: 30px;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 15px;">
@@ -762,6 +823,14 @@
           <p class="empty-sub">El administrador puede agregar datos desde el panel de admin</p>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Ad Overlay Modal -->
+  <div class="ad-modal-overlay" id="adModalOverlay" style="display: none;">
+    <div class="ad-modal-content" id="adModalContent">
+      <button class="ad-close-btn" id="btnAdModalClose">✕</button>
+      <div id="adModalBody"></div>
     </div>
   </div>
 
