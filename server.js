@@ -1251,6 +1251,12 @@ app.get('/api/settings', (req, res) => {
     const adLink = db.prepare("SELECT value FROM settings WHERE key = 'ad_link'").get();
     const adImage = db.prepare("SELECT value FROM settings WHERE key = 'ad_image'").get();
     const adFrequency = db.prepare("SELECT value FROM settings WHERE key = 'ad_frequency'").get();
+
+    const adFooterEnabled = db.prepare("SELECT value FROM settings WHERE key = 'ad_footer_enabled'").get();
+    const adFooterTitle = db.prepare("SELECT value FROM settings WHERE key = 'ad_footer_title'").get();
+    const adFooterDescription = db.prepare("SELECT value FROM settings WHERE key = 'ad_footer_description'").get();
+    const adFooterLink = db.prepare("SELECT value FROM settings WHERE key = 'ad_footer_link'").get();
+    const adFooterImage = db.prepare("SELECT value FROM settings WHERE key = 'ad_footer_image'").get();
     
     res.json({
       theme: theme ? theme.value : '#3b82f6',
@@ -1282,7 +1288,12 @@ app.get('/api/settings', (req, res) => {
       adDescription: adDescription ? adDescription.value : '',
       adLink: adLink ? adLink.value : '',
       adImage: adImage ? adImage.value : '',
-      adFrequency: adFrequency ? adFrequency.value : 'session'
+      adFrequency: adFrequency ? adFrequency.value : 'session',
+      adFooterEnabled: adFooterEnabled ? adFooterEnabled.value === 'true' : false,
+      adFooterTitle: adFooterTitle ? adFooterTitle.value : '',
+      adFooterDescription: adFooterDescription ? adFooterDescription.value : '',
+      adFooterLink: adFooterLink ? adFooterLink.value : '',
+      adFooterImage: adFooterImage ? adFooterImage.value : ''
     });
   } catch(e) {
     res.json({
@@ -1308,7 +1319,12 @@ app.get('/api/settings', (req, res) => {
       adDescription: '',
       adLink: '',
       adImage: '',
-      adFrequency: 'session'
+      adFrequency: 'session',
+      adFooterEnabled: false,
+      adFooterTitle: '',
+      adFooterDescription: '',
+      adFooterLink: '',
+      adFooterImage: ''
     });
   }
 });
@@ -1376,6 +1392,38 @@ app.post('/api/settings/ad/image', upload.single('image'), (req, res) => {
   try {
     const imagePath = '/uploads/' + req.file.filename;
     db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_image', ?)").run(imagePath);
+    res.json({ success: true, imagePath });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Save footer ad settings
+app.post('/api/settings/ad-footer', (req, res) => {
+  try {
+    const { enabled, title, description, link } = req.body;
+    
+    db.transaction(() => {
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_footer_enabled', ?)").run(enabled ? 'true' : 'false');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_footer_title', ?)").run(title || '');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_footer_description', ?)").run(description || '');
+      db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_footer_link', ?)").run(link || '');
+    })();
+
+    res.json({ success: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload footer ad image
+app.post('/api/settings/ad-footer/image', upload.single('image'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se subió ninguna imagen' });
+  }
+  try {
+    const imagePath = '/uploads/' + req.file.filename;
+    db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('ad_footer_image', ?)").run(imagePath);
     res.json({ success: true, imagePath });
   } catch(e) {
     res.status(500).json({ error: e.message });

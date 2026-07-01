@@ -30,6 +30,11 @@ let adDescription = "";
 let adLink = "";
 let adImage = "";
 let adFrequency = "session";
+let adFooterEnabled = false;
+let adFooterTitle = "";
+let adFooterDescription = "";
+let adFooterLink = "";
+let adFooterImage = "";
 let pointsWin = 3;
 let pointsDraw = 1;
 let pointsKoResult = 2;
@@ -397,6 +402,12 @@ async function loadData() {
     adImage = settings.adImage || '';
     adFrequency = settings.adFrequency || 'session';
 
+    adFooterEnabled = settings.adFooterEnabled;
+    adFooterTitle = settings.adFooterTitle || '';
+    adFooterDescription = settings.adFooterDescription || '';
+    adFooterLink = settings.adFooterLink || '';
+    adFooterImage = settings.adFooterImage || '';
+
     // Update Ad Control Card in Admin Panel
     if ($('#adToggle')) $('#adToggle').checked = adEnabled;
     if ($('#adInputTitle')) $('#adInputTitle').value = adTitle;
@@ -414,8 +425,27 @@ async function loadData() {
       }
     }
 
+    // Update Ad Footer Control Card in Admin Panel
+    if ($('#adFooterToggle')) $('#adFooterToggle').checked = adFooterEnabled;
+    if ($('#adFooterInputTitle')) $('#adFooterInputTitle').value = adFooterTitle;
+    if ($('#adFooterInputDescription')) $('#adFooterInputDescription').value = adFooterDescription;
+    if ($('#adFooterInputLink')) $('#adFooterInputLink').value = adFooterLink;
+    if ($('#adFooterImagePreview')) {
+      if (adFooterImage) {
+        $('#adFooterImagePreview').src = adFooterImage;
+        $('#adFooterImagePreviewContainer').style.display = 'block';
+        $('#adFooterFileName').textContent = adFooterImage.split('/').pop();
+      } else {
+        $('#adFooterImagePreviewContainer').style.display = 'none';
+        $('#adFooterFileName').textContent = 'Ningún archivo seleccionado';
+      }
+    }
+
     // Try showing ad modal
     checkAndShowAd();
+
+    // Render footer ad
+    renderFooterAd();
     
     updateStats(stats);
     renderLeaderboard();
@@ -4972,6 +5002,108 @@ window.saveAdSettings = async function(btn) {
     showToast('✅ Configuración de anuncio guardada', 'success');
   } catch (err) {
     showToast('Error al guardar la configuración del anuncio', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+};
+
+// ─── Footer Ad Functions ──────────────────────────────────
+function renderFooterAd() {
+  const container = $('#footerAdContainer');
+  if (!container) return;
+
+  if (!adFooterEnabled || !adFooterImage) {
+    container.style.display = 'none';
+    return;
+  }
+
+  let titleHtml = '';
+  if (adFooterTitle) {
+    titleHtml = `<h4 class="footer-ad-title" style="margin-top: 10px; font-size: 1rem; font-weight: bold; color: var(--text-primary);">${adFooterTitle}</h4>`;
+  }
+
+  let descHtml = '';
+  if (adFooterDescription) {
+    descHtml = `<p class="footer-ad-desc" style="margin-top: 4px; font-size: 0.8rem; color: var(--text-muted);">${adFooterDescription}</p>`;
+  }
+
+  container.innerHTML = `
+    <a href="${adFooterLink || '#'}" target="${adFooterLink ? '_blank' : '_self'}" class="footer-ad-link" style="display: block; width: 100%; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border);">
+      <img src="${adFooterImage}" alt="${adFooterTitle || 'Publicidad'}" class="footer-ad-img" style="width: 100%; max-height: 180px; object-fit: cover; display: block;">
+    </a>
+    ${titleHtml}
+    ${descHtml}
+  `;
+  container.style.display = 'flex';
+}
+
+window.handleAdFooterImageUpload = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  $('#adFooterFileName').textContent = file.name;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const res = await fetch('/api/settings/ad-footer/image', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error, 'error');
+      return;
+    }
+
+    const data = await res.json();
+    adFooterImage = data.imagePath;
+
+    // Show preview
+    $('#adFooterImagePreview').src = adFooterImage;
+    $('#adFooterImagePreviewContainer').style.display = 'block';
+    showToast('📸 Imagen de anuncio fijo cargada', 'success');
+    renderFooterAd();
+  } catch (err) {
+    showToast('Error al subir la imagen', 'error');
+  }
+};
+
+window.saveAdFooterSettings = async function(btn) {
+  const enabled = $('#adFooterToggle').checked;
+  const title = $('#adFooterInputTitle').value.trim();
+  const description = $('#adFooterInputDescription').value.trim();
+  const link = $('#adFooterInputLink').value.trim();
+
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Guardando...';
+
+  try {
+    const res = await fetch('/api/settings/ad-footer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled, title, description, link })
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      showToast(data.error, 'error');
+      return;
+    }
+
+    adFooterEnabled = enabled;
+    adFooterTitle = title;
+    adFooterDescription = description;
+    adFooterLink = link;
+
+    showToast('✅ Anuncio fijo guardado', 'success');
+    renderFooterAd();
+  } catch (err) {
+    showToast('Error al guardar la configuración del anuncio fijo', 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalText;
