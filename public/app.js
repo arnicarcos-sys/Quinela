@@ -4952,8 +4952,12 @@ window.handleAdImageUpload = async function(input) {
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error, 'error');
+      let errMsg = 'Error al subir la imagen';
+      try {
+        const data = await res.json();
+        errMsg = data.error || errMsg;
+      } catch (jsonErr) {}
+      showToast(errMsg, 'error');
       return;
     }
 
@@ -4988,8 +4992,12 @@ window.saveAdSettings = async function(btn) {
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error, 'error');
+      let errMsg = 'Error al guardar la configuración';
+      try {
+        const data = await res.json();
+        errMsg = data.error || errMsg;
+      } catch (jsonErr) {}
+      showToast(errMsg, 'error');
       return;
     }
 
@@ -5054,8 +5062,12 @@ window.handleAdFooterImageUpload = async function(input) {
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error, 'error');
+      let errMsg = 'Error al subir la imagen fija';
+      try {
+        const data = await res.json();
+        errMsg = data.error || errMsg;
+      } catch (jsonErr) {}
+      showToast(errMsg, 'error');
       return;
     }
 
@@ -5090,8 +5102,12 @@ window.saveAdFooterSettings = async function(btn) {
     });
 
     if (!res.ok) {
-      const data = await res.json();
-      showToast(data.error, 'error');
+      let errMsg = 'Error al guardar la configuración fija';
+      try {
+        const data = await res.json();
+        errMsg = data.error || errMsg;
+      } catch (jsonErr) {}
+      showToast(errMsg, 'error');
       return;
     }
 
